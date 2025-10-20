@@ -1,5 +1,5 @@
-import { Home, LogOut, Settings, User } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Home, LogOut, Settings, User, Building2 } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { Button } from './ui/button';
 import { Separator } from './ui/separator';
@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback } from './ui/avatar';
 
 export const Sidebar = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout } = useAuthStore();
 
   const handleLogout = () => {
@@ -22,6 +23,8 @@ export const Sidebar = () => {
       .toUpperCase()
       .slice(0, 2);
   };
+
+  const isActive = (path: string) => location.pathname === path;
 
   return (
     <div className="flex h-screen w-64 flex-col border-r bg-gray-50">
@@ -53,15 +56,25 @@ export const Sidebar = () => {
       {/* Navigation */}
       <nav className="flex-1 space-y-1 p-4">
         <Button
-          variant="ghost"
+          variant={isActive('/dashboard') ? 'secondary' : 'ghost'}
           className="w-full justify-start gap-3"
           onClick={() => navigate('/dashboard')}
         >
           <Home size={20} />
           Dashboard
         </Button>
+        {user?.role === 'HR' && (
+          <Button
+            variant={isActive('/departemen') ? 'secondary' : 'ghost'}
+            className="w-full justify-start gap-3"
+            onClick={() => navigate('/departemen')}
+          >
+            <Building2 size={20} />
+            Departemen
+          </Button>
+        )}
         <Button
-          variant="ghost"
+          variant={isActive('/profile') ? 'secondary' : 'ghost'}
           className="w-full justify-start gap-3"
           onClick={() => navigate('/profile')}
         >
@@ -69,7 +82,7 @@ export const Sidebar = () => {
           Profile
         </Button>
         <Button
-          variant="ghost"
+          variant={isActive('/settings') ? 'secondary' : 'ghost'}
           className="w-full justify-start gap-3"
           onClick={() => navigate('/settings')}
         >
