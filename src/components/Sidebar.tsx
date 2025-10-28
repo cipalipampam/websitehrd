@@ -1,9 +1,9 @@
-import { Home, LogOut, Settings, User, Building2 } from 'lucide-react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuthStore } from '../stores/authStore';
-import { Button } from './ui/button';
-import { Separator } from './ui/separator';
-import { Avatar, AvatarFallback } from './ui/avatar';
+import { Home, LogOut, Settings, User, Building2 } from "lucide-react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useAuthStore } from "../stores/authStore";
+import { Button } from "./ui/button";
+import { Separator } from "./ui/separator";
+import { Avatar, AvatarFallback } from "./ui/avatar";
 
 export const Sidebar = () => {
   const navigate = useNavigate();
@@ -12,14 +12,14 @@ export const Sidebar = () => {
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate("/login");
   };
 
   const getInitials = (name: string) => {
     return name
-      .split(' ')
+      .split(" ")
       .map((n) => n[0])
-      .join('')
+      .join("")
       .toUpperCase()
       .slice(0, 2);
   };
@@ -40,7 +40,7 @@ export const Sidebar = () => {
         <div className="flex items-center gap-3 rounded-lg bg-white p-3 shadow-sm">
           <Avatar>
             <AvatarFallback className="bg-blue-500 text-white">
-              {user ? getInitials(user.username) : 'U'}
+              {user ? getInitials(user.username) : "U"}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 overflow-hidden">
@@ -56,35 +56,46 @@ export const Sidebar = () => {
       {/* Navigation */}
       <nav className="flex-1 space-y-1 p-4">
         <Button
-          variant={isActive('/dashboard') ? 'secondary' : 'ghost'}
+          variant={isActive("/dashboard") ? "secondary" : "ghost"}
           className="w-full justify-start gap-3"
-          onClick={() => navigate('/dashboard')}
+          onClick={() => navigate("/dashboard")}
         >
           <Home size={20} />
           Dashboard
         </Button>
-        {user?.role === 'HR' && (
-          <Button
-            variant={isActive('/departemen') ? 'secondary' : 'ghost'}
-            className="w-full justify-start gap-3"
-            onClick={() => navigate('/departemen')}
-          >
-            <Building2 size={20} />
-            Departemen
-          </Button>
+        {user?.role === "HR" && (
+          <>
+            <Button
+              variant={isActive("/departemen") ? "secondary" : "ghost"}
+              className="w-full justify-start gap-3"
+              onClick={() => navigate("/departemen")}
+            >
+              <Building2 size={20} />
+              Departemen
+            </Button>
+
+            <Button
+              variant={isActive("/departemen2") ? "secondary" : "ghost"}
+              className="w-full justify-start gap-3"
+              onClick={() => navigate("/jabatan")}
+            >
+              <Building2 size={20} />
+              Jabatan
+            </Button>
+          </>
         )}
         <Button
-          variant={isActive('/profile') ? 'secondary' : 'ghost'}
+          variant={isActive("/profile") ? "secondary" : "ghost"}
           className="w-full justify-start gap-3"
-          onClick={() => navigate('/profile')}
+          onClick={() => navigate("/profile")}
         >
           <User size={20} />
           Profile
         </Button>
         <Button
-          variant={isActive('/settings') ? 'secondary' : 'ghost'}
+          variant={isActive("/settings") ? "secondary" : "ghost"}
           className="w-full justify-start gap-3"
-          onClick={() => navigate('/settings')}
+          onClick={() => navigate("/settings")}
         >
           <Settings size={20} />
           Settings

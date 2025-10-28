@@ -99,4 +99,27 @@ export const departemenAPI = {
   },
 };
 
+export const jabatanAPI = {
+  getAll: async (): Promise<DepartemenResponse> => {
+    const response = await api.get<DepartemenResponse>('/api/jabatan');
+    return response.data;
+  },
+
+  create: async (data: DepartemenCreateRequest): Promise<DepartemenSingleResponse> => {
+    const response = await api.post<DepartemenSingleResponse>('/api/jabatan', data);
+    return response.data;
+  },
+
+  update: async (id: string, data: DepartemenUpdateRequest): Promise<DepartemenSingleResponse> => {
+    console.log('Updating departemen:', { id, data }); // Log tambahan
+    const response = await api.put<DepartemenSingleResponse>(`/api/jabatan/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id: string): Promise<{ status: number; message: string }> => {
+    const response = await api.delete<{ status: number; message: string }>(`/api/jabatan/${id}`);
+    return response.data;
+  },
+};
+
 export default api;
