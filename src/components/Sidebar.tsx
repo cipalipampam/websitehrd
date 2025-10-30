@@ -82,6 +82,15 @@ export const Sidebar = () => {
               <Building2 size={20} />
               Jabatan
             </Button>
+
+            <Button
+              variant={isActive("/departemen2") ? "secondary" : "ghost"}
+              className="w-full justify-start gap-3"
+              onClick={() => navigate("/karyawan")}
+            >
+              <Building2 size={20} />
+              Karyawan
+            </Button>
           </>
         )}
         <Button

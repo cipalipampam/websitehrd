@@ -6,6 +6,10 @@ import type {
   DepartemenUpdateRequest,
   DepartemenSingleResponse 
 } from '../types/departemen';
+import type { JabatanCreateRequest, JabatanResponse, JabatanSingleResponse, JabatanUpdateRequest } from '@/types/jabatan';
+import type { KaryawanCreateRequest, KaryawanResponse, KaryawanSingleResponse, KaryawanUpdateRequest } from '@/types/karyawan';
+
+
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -100,24 +104,52 @@ export const departemenAPI = {
 };
 
 export const jabatanAPI = {
-  getAll: async (): Promise<DepartemenResponse> => {
-    const response = await api.get<DepartemenResponse>('/api/jabatan');
+  getAll: async (): Promise<JabatanResponse> => {
+    const response = await api.get<JabatanResponse>('/api/jabatan');
     return response.data;
   },
 
-  create: async (data: DepartemenCreateRequest): Promise<DepartemenSingleResponse> => {
-    const response = await api.post<DepartemenSingleResponse>('/api/jabatan', data);
+  create: async (data: JabatanCreateRequest): Promise<JabatanSingleResponse> => {
+    const response = await api.post<JabatanSingleResponse>('/api/jabatan', data);
     return response.data;
   },
 
-  update: async (id: string, data: DepartemenUpdateRequest): Promise<DepartemenSingleResponse> => {
-    console.log('Updating departemen:', { id, data }); // Log tambahan
-    const response = await api.put<DepartemenSingleResponse>(`/api/jabatan/${id}`, data);
+  update: async (id: string, data: JabatanUpdateRequest): Promise<JabatanSingleResponse> => {
+    console.log('Updating Jabatan:', { id, data }); // Log tambahan
+    const response = await api.put<JabatanSingleResponse>(`/api/jabatan/${id}`, data);
     return response.data;
   },
 
   delete: async (id: string): Promise<{ status: number; message: string }> => {
     const response = await api.delete<{ status: number; message: string }>(`/api/jabatan/${id}`);
+    return response.data;
+  },
+};
+
+export const karyawanAPI = {
+  getAll: async (): Promise<KaryawanResponse> => {
+    const response = await api.get<KaryawanResponse>('/api/karyawan');
+    return response.data;
+  },
+
+  getById: async (id: string): Promise<KaryawanSingleResponse> => {
+    const response = await api.get<KaryawanSingleResponse>(`/api/karyawan/${id}`);
+    return response.data;
+  },
+
+  create: async (data: KaryawanCreateRequest): Promise<KaryawanSingleResponse> => {
+    const response = await api.post<KaryawanSingleResponse>('/api/karyawan', data);
+    return response.data;
+  },
+
+  update: async (id: string, data: KaryawanUpdateRequest): Promise<KaryawanSingleResponse> => {
+    console.log('Updating Karyawan:', { id, data });
+    const response = await api.put<KaryawanSingleResponse>(`/api/karyawan/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id: string): Promise<{ status: number; message: string }> => {
+    const response = await api.delete<{ status: number; message: string }>(`/api/karyawan/${id}`);
     return response.data;
   },
 };

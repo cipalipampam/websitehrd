@@ -4,6 +4,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Departemen } from './pages/Departemen';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Jabatan } from './pages/Jabatan';
+import { Karyawan } from './pages/Karyawan';
 
 function App() {
   return (
@@ -32,6 +33,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Jabatan />
+            </ProtectedRoute>
+          }
+        />
+         <Route
+          path="/karyawan"
+          element={
+            <ProtectedRoute>
+              <Karyawan />
             </ProtectedRoute>
           }
         />
