@@ -8,6 +8,19 @@ import type {
 } from '../types/departemen';
 import type { JabatanCreateRequest, JabatanResponse, JabatanSingleResponse, JabatanUpdateRequest } from '@/types/jabatan';
 import type { KaryawanCreateRequest, KaryawanResponse, KaryawanSingleResponse, KaryawanUpdateRequest } from '@/types/karyawan';
+import type {
+  KpiIndicatorResponse,
+  KpiIndicatorSingleResponse,
+  KpiIndicatorCreateRequest,
+  KpiIndicatorUpdateRequest,
+  KpiResponse,
+  KpiSingleResponse,
+  KpiCreateRequest,
+  KpiUpdateRequest,
+  KpiDetailCreateRequest,
+  KpiDetailUpdateRequest,
+  KpiDetailSingleResponse,
+} from '@/types/kpi';
 
 
 
@@ -154,4 +167,100 @@ export const karyawanAPI = {
   },
 };
 
+// KPI Indicator API
+export const kpiIndicatorAPI = {
+  getAll: async (departemenId?: string): Promise<KpiIndicatorResponse> => {
+    const params: Record<string, string> = {};
+    if (departemenId) {
+      params.departemenId = departemenId;
+    }
+    const response = await api.get<KpiIndicatorResponse>('/api/kpi/indicators', { params });
+    return response.data;
+  },
+
+  getById: async (id: string): Promise<KpiIndicatorSingleResponse> => {
+    const response = await api.get<KpiIndicatorSingleResponse>(`/api/kpi/indicators/${id}`);
+    return response.data;
+  },
+
+  create: async (data: KpiIndicatorCreateRequest): Promise<KpiIndicatorSingleResponse> => {
+    const response = await api.post<KpiIndicatorSingleResponse>('/api/kpi/indicators', data);
+    return response.data;
+  },
+
+  update: async (id: string, data: KpiIndicatorUpdateRequest): Promise<KpiIndicatorSingleResponse> => {
+    console.log('Updating KPI Indicator:', { id, data });
+    const response = await api.put<KpiIndicatorSingleResponse>(`/api/kpi/indicators/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id: string): Promise<{ status: number; message: string }> => {
+    const response = await api.delete<{ status: number; message: string }>(`/api/kpi/indicators/${id}`);
+    return response.data;
+  },
+};
+
+// KPI Query Parameters Interface
+interface KpiQueryParams {
+  year?: number;
+  karyawanId?: string;
+}
+
+// KPI API
+export const kpiAPI = {
+  getAll: async (year?: number, karyawanId?: string): Promise<KpiResponse> => {
+    const params: KpiQueryParams = {};
+    if (year !== undefined) {
+      params.year = year;
+    }
+    if (karyawanId !== undefined) {
+      params.karyawanId = karyawanId;
+    }
+    
+    const response = await api.get<KpiResponse>('/api/kpi/kpi', { params });
+    return response.data;
+  },
+
+  getById: async (id: string): Promise<KpiSingleResponse> => {
+    const response = await api.get<KpiSingleResponse>(`/api/kpi/kpi/${id}`);
+    return response.data;
+  },
+
+  create: async (data: KpiCreateRequest): Promise<KpiSingleResponse> => {
+    const response = await api.post<KpiSingleResponse>('/api/kpi/kpi', data);
+    return response.data;
+  },
+
+  update: async (id: string, data: KpiUpdateRequest): Promise<KpiSingleResponse> => {
+    console.log('Updating KPI:', { id, data });
+    const response = await api.put<KpiSingleResponse>(`/api/kpi/kpi/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id: string): Promise<{ status: number; message: string }> => {
+    const response = await api.delete<{ status: number; message: string }>(`/api/kpi/kpi/${id}`);
+    return response.data;
+  },
+
+  getMyKpi: async (): Promise<KpiResponse> => {
+    const response = await api.get<KpiResponse>('/api/kpi/my-kpi');
+    return response.data;
+  },
+
+  // KPI Detail endpoints
+  addDetail: async (kpiId: string, data: KpiDetailCreateRequest): Promise<KpiDetailSingleResponse> => {
+    const response = await api.post<KpiDetailSingleResponse>(`/api/kpi/kpi/${kpiId}/details`, data);
+    return response.data;
+  },
+
+  updateDetail: async (detailId: string, data: KpiDetailUpdateRequest): Promise<KpiDetailSingleResponse> => {
+    const response = await api.put<KpiDetailSingleResponse>(`/api/kpi/kpi/details/${detailId}`, data);
+    return response.data;
+  },
+
+  deleteDetail: async (detailId: string): Promise<{ status: number; message: string }> => {
+    const response = await api.delete<{ status: number; message: string }>(`/api/kpi/kpi/details/${detailId}`);
+    return response.data;
+  },
+};
 export default api;
