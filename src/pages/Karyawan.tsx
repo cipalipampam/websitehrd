@@ -588,13 +588,9 @@ export const Karyawan = () => {
                         <SelectValue placeholder="Pilih pendidikan" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="SD">SD</SelectItem>
-                        <SelectItem value="SMP">SMP</SelectItem>
-                        <SelectItem value="SMA">SMA/SMK</SelectItem>
-                        <SelectItem value="D3">D3</SelectItem>
-                        <SelectItem value="S1">S1</SelectItem>
-                        <SelectItem value="S2">S2</SelectItem>
-                        <SelectItem value="S3">S3</SelectItem>
+                        <SelectItem value="Magister">Magister</SelectItem>
+                        <SelectItem value="Sarjana">Sarjana</SelectItem>
+                        <SelectItem value="Dibawah Keduanya">Dibawah Keduanya</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -695,12 +691,9 @@ export const Karyawan = () => {
                         <SelectValue placeholder="Pilih jalur rekrutmen" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Internal">Internal</SelectItem>
-                        <SelectItem value="Eksternal">Eksternal</SelectItem>
-                        <SelectItem value="Referral">Referral</SelectItem>
-                        <SelectItem value="Campus Hiring">
-                          Campus Hiring
-                        </SelectItem>
+                        <SelectItem value="Wawancara">Wawancara</SelectItem>
+                        <SelectItem value="Undangan">Undangan</SelectItem>
+                        <SelectItem value="lainnya">lainnya</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
