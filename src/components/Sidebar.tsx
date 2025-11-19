@@ -75,7 +75,7 @@ export const Sidebar = () => {
             </Button>
 
             <Button
-              variant={isActive("/departemen2") ? "secondary" : "ghost"}
+              variant={isActive("/jabatan") ? "secondary" : "ghost"}
               className="w-full justify-start gap-3"
               onClick={() => navigate("/jabatan")}
             >
@@ -84,12 +84,30 @@ export const Sidebar = () => {
             </Button>
 
             <Button
-              variant={isActive("/departemen2") ? "secondary" : "ghost"}
+              variant={isActive("/karyawan") ? "secondary" : "ghost"}
               className="w-full justify-start gap-3"
               onClick={() => navigate("/karyawan")}
             >
               <Building2 size={20} />
               Karyawan
+            </Button>
+
+            <Button
+              variant={isActive("/kpi") ? "secondary" : "ghost"}
+              className="w-full justify-start gap-3"
+              onClick={() => navigate("/kpi")}
+            >
+              <Building2 size={20} />
+              KPI
+            </Button>
+
+            <Button
+              variant={isActive("/kpi-indicators") ? "secondary" : "ghost"}
+              className="w-full justify-start gap-3"
+              onClick={() => navigate("/kpi-indicators")}
+            >
+              <Building2 size={20} />
+              KPI Indicators
             </Button>
           </>
         )}
