@@ -21,6 +21,13 @@ import type {
   KpiDetailUpdateRequest,
   KpiDetailSingleResponse,
 } from '@/types/kpi';
+import type {
+  PenghargaanResponse,
+  PenghargaanSingleResponse,
+  PenghargaanCreateRequest,
+  PenghargaanUpdateRequest,
+} from '@/types/perhargaan';
+
 
 
 
@@ -263,4 +270,38 @@ export const kpiAPI = {
     return response.data;
   },
 };
+
+export const penghargaanAPI = {
+  getAll: async (): Promise<PenghargaanResponse> => {
+    const response = await api.get<PenghargaanResponse>('/api/penghargaan');
+    return response.data;
+  },
+
+  getById: async (id: string): Promise<PenghargaanSingleResponse> => {
+    const response = await api.get<PenghargaanSingleResponse>(`/api/penghargaan/${id}`);
+    return response.data;
+  },
+
+  getByKaryawan: async (karyawanId: string): Promise<PenghargaanResponse> => {
+    const response = await api.get<PenghargaanResponse>(`/api/penghargaan/karyawan/${karyawanId}`);
+    return response.data;
+  },
+
+  create: async (data: PenghargaanCreateRequest): Promise<PenghargaanSingleResponse> => {
+    const response = await api.post<PenghargaanSingleResponse>('/api/penghargaan', data);
+    return response.data;
+  },
+
+  update: async (id: string, data: PenghargaanUpdateRequest): Promise<PenghargaanSingleResponse> => {
+    console.log('Updating Penghargaan:', { id, data });
+    const response = await api.put<PenghargaanSingleResponse>(`/api/penghargaan/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id: string): Promise<{ status: number; message: string }> => {
+    const response = await api.delete<{ status: number; message: string }>(`/api/penghargaan/${id}`);
+    return response.data;
+  },
+};
+
 export default api;

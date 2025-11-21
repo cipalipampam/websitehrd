@@ -109,6 +109,14 @@ export const Sidebar = () => {
               <Building2 size={20} />
               KPI Indicators
             </Button>
+             <Button
+              variant={isActive("/kpi-indicators") ? "secondary" : "ghost"}
+              className="w-full justify-start gap-3"
+              onClick={() => navigate("/penghargaan")}
+            >
+              <Building2 size={20} />
+              Penghargaan
+            </Button>
           </>
         )}
         <Button

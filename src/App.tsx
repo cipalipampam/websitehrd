@@ -7,6 +7,7 @@ import { Jabatan } from './pages/Jabatan';
 import { Karyawan } from './pages/Karyawan';
 import { Kpi } from './pages/Kpi';
 import { KpiIndicators } from './pages/KpiIndicators';
+import { Penghargaan } from './pages/penghargaan';
 
 function App() {
   return (
@@ -59,6 +60,14 @@ function App() {
           element={
             <ProtectedRoute>
               <KpiIndicators />
+            </ProtectedRoute>
+          }
+        />
+         <Route
+          path="/penghargaan"
+          element={
+            <ProtectedRoute>
+              <Penghargaan />
             </ProtectedRoute>
           }
         />
