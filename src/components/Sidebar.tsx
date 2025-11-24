@@ -1,4 +1,4 @@
-import { Home, LogOut, Settings, User, Building2 } from "lucide-react";
+import { Home, LogOut, Settings, User, Building2, Brain } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "../stores/authStore";
 import { Button } from "./ui/button";
@@ -116,6 +116,14 @@ export const Sidebar = () => {
             >
               <Building2 size={20} />
               Penghargaan
+            </Button>
+            <Button
+              variant={isActive("/predict") ? "secondary" : "ghost"}
+              className="w-full justify-start gap-3"
+              onClick={() => navigate("/predict")}
+            >
+              <Brain size={20} />
+              Prediksi Promosi
             </Button>
           </>
         )}
