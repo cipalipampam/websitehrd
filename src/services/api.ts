@@ -27,6 +27,12 @@ import type {
   PenghargaanCreateRequest,
   PenghargaanUpdateRequest,
 } from '@/types/perhargaan';
+import type {
+  PredictInput,
+  PredictResponse,
+  KaryawanPredictResponse,
+  BatchPredictResponse,
+} from '@/types/predict';
 
 
 
@@ -300,6 +306,38 @@ export const penghargaanAPI = {
 
   delete: async (id: string): Promise<{ status: number; message: string }> => {
     const response = await api.delete<{ status: number; message: string }>(`/api/penghargaan/${id}`);
+    return response.data;
+  },
+};
+
+export const predictAPI = {
+  // Prediksi manual dengan input form
+  predict: async (data: PredictInput): Promise<PredictResponse> => {
+    const response = await api.post<PredictResponse>('/api/predict', data);
+    return response.data;
+  },
+
+  // Prediksi untuk karyawan tertentu
+  predictKaryawan: async (
+    id: string,
+    year: number
+  ): Promise<KaryawanPredictResponse> => {
+    const response = await api.post<KaryawanPredictResponse>(
+      `/api/predict/karyawan/${id}`,
+      { year }
+    );
+    return response.data;
+  },
+
+  // Prediksi batch untuk semua karyawan
+  predictBatch: async (
+    year: number,
+    filter?: 'promosi' | 'tidak_promosi'
+  ): Promise<BatchPredictResponse> => {
+    const response = await api.post<BatchPredictResponse>('/api/predict/batch', {
+      year,
+      filter,
+    });
     return response.data;
   },
 };
