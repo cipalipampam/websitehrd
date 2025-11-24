@@ -470,7 +470,7 @@ export const Predict = () => {
                         </div>
 
                         <div className="space-y-2">
-                          <Label>KPI {">"} 80%</Label>
+                          <Label>KPI {">"} 80% ?</Label>
                           <Select
                             value={formData["KPI_>80%"].toString()}
                             onValueChange={(value) =>
@@ -491,8 +491,8 @@ export const Predict = () => {
                         </div>
 
                         <div className="space-y-2">
-                          <Label>Penghargaan</Label>
-                          <Input
+                          <Label>Mendapat Penghargaan ?</Label>
+                          {/* <Input
                             type="number"
                             value={formData.penghargaan}
                             onChange={(e) =>
@@ -501,14 +501,31 @@ export const Predict = () => {
                                 penghargaan: parseInt(e.target.value) || 0,
                               })
                             }
-                          />
+                          /> */}
+                           <Select
+                            value={formData.penghargaan.toString()}
+                            onValueChange={(value) =>
+                              setFormData({
+                                ...formData,
+                                penghargaan: parseInt(value),
+                              })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Ketersediaan Penghargaan" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="0">Tidak</SelectItem>
+                              <SelectItem value="1">Ada</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
 
                         <div className="space-y-2">
                           <Label>Rata-rata Score Pelatihan</Label>
                           <Input
                             type="number"
-                            step="0.01"
+                            // step="0.01"
                             value={formData.rata_rata_score_pelatihan}
                             onChange={(e) =>
                               setFormData({
