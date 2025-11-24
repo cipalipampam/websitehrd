@@ -1,4 +1,4 @@
-import { Home, LogOut, Settings, User, Building2, Brain } from "lucide-react";
+import { Home, LogOut, Settings, User, Building2, Brain, Award } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "../stores/authStore";
 import { Button } from "./ui/button";
@@ -29,14 +29,14 @@ export const Sidebar = () => {
   return (
     <div className="flex h-screen w-64 flex-col border-r bg-gray-50">
       {/* Header */}
-      <div className="p-6">
+      <div className="flex-shrink-0 p-6">
         <h2 className="text-2xl font-bold text-gray-800">Dashboard</h2>
       </div>
 
       <Separator />
 
       {/* User Info */}
-      <div className="p-4">
+      <div className="flex-shrink-0 p-4">
         <div className="flex items-center gap-3 rounded-lg bg-white p-3 shadow-sm">
           <Avatar>
             <AvatarFallback className="bg-blue-500 text-white">
@@ -53,8 +53,8 @@ export const Sidebar = () => {
         </div>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 space-y-1 p-4">
+      {/* Navigation - Scrollable */}
+      <nav className="flex-1 overflow-y-auto space-y-1 p-4">
         <Button
           variant={isActive("/dashboard") ? "secondary" : "ghost"}
           className="w-full justify-start gap-3"
@@ -88,7 +88,7 @@ export const Sidebar = () => {
               className="w-full justify-start gap-3"
               onClick={() => navigate("/karyawan")}
             >
-              <Building2 size={20} />
+              <User size={20} />
               Karyawan
             </Button>
 
@@ -109,14 +109,16 @@ export const Sidebar = () => {
               <Building2 size={20} />
               KPI Indicators
             </Button>
-             <Button
-              variant={isActive("/kpi-indicators") ? "secondary" : "ghost"}
+            
+            <Button
+              variant={isActive("/penghargaan") ? "secondary" : "ghost"}
               className="w-full justify-start gap-3"
               onClick={() => navigate("/penghargaan")}
             >
-              <Building2 size={20} />
+              <Award size={20} />
               Penghargaan
             </Button>
+            
             <Button
               variant={isActive("/predict") ? "secondary" : "ghost"}
               className="w-full justify-start gap-3"
@@ -148,7 +150,7 @@ export const Sidebar = () => {
       <Separator />
 
       {/* Logout */}
-      <div className="p-4">
+      <div className="flex-shrink-0 p-4">
         <Button
           variant="destructive"
           className="w-full gap-3"
