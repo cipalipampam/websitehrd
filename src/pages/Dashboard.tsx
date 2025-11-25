@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { useAuthStore } from '../stores/authStore';
+import { departemenAPI } from '../services/api';
+import { karyawanAPI } from '../services/api';
+
 import {
   Card,
   CardContent,
@@ -119,7 +122,9 @@ const employeeData = {
 };
 
 // Updated departments array
-const departments = ['Analytics', 'Finance', 'HR', 'Operations', 'Procurement', 'R&D', 'Sales & Marketing', 'Technology'];
+//const departments = ['Analytics', 'Finance', 'HR', 'Operations', 'Procurement', 'R&D', 'Sales & Marketing', 'Technology'];
+
+
 
 const departmentColors = {
   Analytics: '#8884d8',
@@ -205,6 +210,53 @@ export const Dashboard = () => {
   const [selectedAttendanceDepartment, setSelectedAttendanceDepartment] = useState('Analytics');
   const [selectedAttendanceMonth, setSelectedAttendanceMonth] = useState(new Date().getMonth());
   const [selectedAttendanceYear, setSelectedAttendanceYear] = useState(new Date().getFullYear());
+  const [karyawan, setKaryawan] = useState<any[]>([]);
+  const [chartStartMonth, setChartStartMonth] = useState(new Date().getMonth() - 11);
+  const [chartStartYear, setChartStartYear] = useState(new Date().getFullYear());
+  const [chartEndMonth, setChartEndMonth] = useState(new Date().getMonth());
+  const [chartEndYear, setChartEndYear] = useState(new Date().getFullYear());
+
+
+const [departments, setDepartments] = useState<string[]>([]);
+const [loadingDepartments, setLoadingDepartments] = useState(true);
+
+useEffect(() => {
+  fetchUser().catch(console.error);
+
+  // load departemen dari API
+  const loadDepartments = async () => {
+    try {
+      const res = await departemenAPI.getAll();
+      const names = res.data.map((d) => d.nama);
+
+      setDepartments(names);
+
+      // Set default selected
+      setSelectedDepartments(names.slice(0, 3));  
+      setSelectedEmployeeDepartment(names[0]);
+      setSelectedAttendanceDepartment(names[0]);
+    } catch (err) {
+      console.error("Failed to load departments", err);
+    } finally {
+      setLoadingDepartments(false);
+    }
+  };
+
+  loadDepartments();
+}, [fetchUser]);
+
+  useEffect(() => {
+  const loadKaryawan = async () => {
+    try {
+      const res = await karyawanAPI.getAll();
+      setKaryawan(res.data);  // <- simpan data karyawan real
+    } catch (err) {
+      console.error("Failed to load karyawan", err);
+    }
+  };
+
+  loadKaryawan();
+}, []);
 
   useEffect(() => {
     fetchUser().catch((error: Error) => {
@@ -375,11 +427,20 @@ export const Dashboard = () => {
     return last12Months;
   };
 
-  // Updated filter function to show multiple selected departments
+  // Updated filter function to show multiple selected departments with date range
   const getFilteredData = () => {
     const last12MonthsData = getLast12MonthsData();
     
-    return last12MonthsData.map(item => {
+    // Filter by date range
+    const filteredByDate = last12MonthsData.filter(item => {
+      const itemDate = new Date(item.year, item.monthIndex);
+      const startDate = new Date(chartStartYear, chartStartMonth);
+      const endDate = new Date(chartEndYear, chartEndMonth);
+      
+      return itemDate >= startDate && itemDate <= endDate;
+    });
+    
+    return filteredByDate.map(item => {
       const filteredItem: any = {
         month: item.month,
         monthIndex: item.monthIndex,
@@ -432,8 +493,9 @@ export const Dashboard = () => {
   };
 
   const getTotalEmployees = () => {
-    return Object.values(employeeData).flat().length;
-  };
+  return karyawan.length;
+};
+
 
   const getDepartmentStats = (dept: string) => {
     const employees = employeeData[dept as keyof typeof employeeData] || [];
@@ -530,230 +592,107 @@ export const Dashboard = () => {
           {/* Department Performance Summary */}
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             {departments.map((dept) => {
-              const last12MonthsData = getLast12MonthsData();
-              const latestKPI = last12MonthsData[last12MonthsData.length - 1][dept as keyof typeof last12MonthsData[0]] as number;
-              const previousKPI = last12MonthsData[last12MonthsData.length - 2][dept as keyof typeof last12MonthsData[0]] as number;
-              const trend = latestKPI > previousKPI ? 'up' : latestKPI < previousKPI ? 'down' : 'stable';
-              const stats = getDepartmentStats(dept);
-              
-              return (
-                <Card key={dept} className="hover:shadow-lg transition-shadow duration-200">
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span className="text-sm font-semibold">{dept}</span>
-                      <TrendIcon trend={trend} />
-                    </CardTitle>
-                    <CardDescription>Department Overview</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div>
-                      <p className="text-2xl font-bold" style={{ color: departmentColors[dept as keyof typeof departmentColors] }}>
-                        {latestKPI}%
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {trend === 'up' ? '+' : trend === 'down' ? '' : ''}{(latestKPI - previousKPI).toFixed(1)}% from last month
-                      </p>
-                    </div>
-                    <div className="pt-2 border-t space-y-1">
-                      <p className="text-sm text-muted-foreground">
-                        <span className="font-medium text-foreground">{stats.count}</span> employees
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Avg Performance: <span className="font-medium text-foreground">{stats.avgPerformance}%</span>
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+  const last12MonthsData = getLast12MonthsData();
+  const latestKPI = 80; // sementara kamu bisa ambil dari KPI API juga kalau mau
+  const previousKPI = 75;
+
+  const trend = latestKPI > previousKPI ? 'up' : latestKPI < previousKPI ? 'down' : 'stable';
+
+  const stats = { count: 0, avgPerformance: 0 }; // nanti bisa diganti API karyawan
+
+  return (
+    <Card key={dept} className="hover:shadow-lg transition-shadow duration-200">
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span className="text-sm font-semibold">{dept}</span>
+          <TrendIcon trend={trend} />
+        </CardTitle>
+        <CardDescription>Department Overview</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div>
+          <p className="text-2xl font-bold text-blue-500">{latestKPI}%</p>
+          <p className="text-sm text-muted-foreground">
+            {latestKPI - previousKPI}% from last month
+          </p>
+        </div>
+        <div className="pt-2 border-t space-y-1">
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">{stats.count}</span> employees
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Avg Performance: <span className="font-medium text-foreground">{stats.avgPerformance}%</span>
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+})}
+
           </div>
 
-          {/* Employee Attendance Table */}
+          {/* Department KPI Chart - Moved above Employee Attendance */}
           <Card>
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <CardTitle>Employee Attendance - {getMonthName(selectedAttendanceMonth)} {selectedAttendanceYear}</CardTitle>
-                  <CardDescription>Daily attendance tracking for {selectedAttendanceDepartment} department</CardDescription>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Select value={selectedAttendanceDepartment} onValueChange={setSelectedAttendanceDepartment}>
-                    <SelectTrigger className="w-40">
-                      <SelectValue placeholder="Department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departments.map((dept) => (
-                        <SelectItem key={dept} value={dept}>
-                          {dept}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={selectedAttendanceMonth.toString()} onValueChange={(value) => setSelectedAttendanceMonth(parseInt(value))}>
-                    <SelectTrigger className="w-32">
-                      <SelectValue placeholder="Month" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {getMonthOptions().map((month) => (
-                        <SelectItem key={month.value} value={month.value.toString()}>
-                          {month.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={selectedAttendanceYear.toString()} onValueChange={(value) => setSelectedAttendanceYear(parseInt(value))}>
-                    <SelectTrigger className="w-20">
-                      <SelectValue placeholder="Year" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {getYearOptions().map((year) => (
-                        <SelectItem key={year} value={year.toString()}>
-                          {year}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="sticky left-0 bg-background z-10 border-r font-semibold min-w-[120px]">Employee</TableHead>
-                      {days.map((dayInfo) => (
-                        <TableHead key={dayInfo.day} className={`text-center min-w-[40px] text-xs ${dayInfo.isWeekend ? 'bg-muted/50 text-muted-foreground' : ''}`}>
-                          <div className="flex flex-col">
-                            <span>{dayInfo.day}</span>
-                            <span className="text-xs">{dayInfo.dayName}</span>
-                          </div>
-                        </TableHead>
-                      ))}
-                      <TableHead className="text-center font-semibold border-l">Present</TableHead>
-                      <TableHead className="text-center font-semibold">Late</TableHead>
-                      <TableHead className="text-center font-semibold">Absent</TableHead>
-                      <TableHead className="text-center font-semibold">Rate %</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {attendanceData.map((employee) => (
-                      <TableRow key={employee.id}>
-                        <TableCell className="sticky left-0 bg-background z-10 border-r font-medium">
-                          {employee.name}
-                        </TableCell>
-                        {days.map((dayInfo) => {
-                          const status = employee[`day${dayInfo.day}` as keyof typeof employee] as string;
-                          return (
-                            <TableCell 
-                              key={dayInfo.day} 
-                              className={`text-center text-sm ${dayInfo.isWeekend ? 'bg-muted/30' : ''}`}
-                            >
-                              <span className={`
-                                inline-block w-6 h-6 rounded text-xs leading-6 font-medium
-                                ${status === '✓' ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300' : 
-                                  status === 'L' ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300' : 
-                                  status === 'X' ? 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300' : 
-                                  'text-muted-foreground'}
-                              `}>
-                                {status}
-                              </span>
-                            </TableCell>
-                          );
-                        })}
-                        <TableCell className="text-center font-medium border-l text-green-700 dark:text-green-400">
-                          {employee.presentDays}
-                        </TableCell>
-                        <TableCell className="text-center font-medium text-yellow-700 dark:text-yellow-400">
-                          {employee.lateDays}
-                        </TableCell>
-                        <TableCell className="text-center font-medium text-red-700 dark:text-red-400">
-                          {employee.absentDays}
-                        </TableCell>
-                        <TableCell className="text-center font-medium">
-                          <Badge 
-                            variant="outline" 
-                            className={`
-                              ${employee.attendanceRate >= 95 ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300 border-green-200 dark:border-green-800' : 
-                                employee.attendanceRate >= 85 ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800' : 
-                                employee.attendanceRate >= 75 ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800' : 
-                                'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800'}
-                            `}
-                          >
-                            {employee.attendanceRate}%
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-              
-              {/* Legend */}
-              <div className="mt-4 flex flex-wrap gap-4 text-sm text-foreground">
-                <div className="flex items-center gap-2">
-                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300 text-center">✓</span>
-                  <span>Present</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300 text-center">L</span>
-                  <span>Late</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300 text-center">X</span>
-                  <span>Absent</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium text-muted-foreground text-center">-</span>
-                  <span>Weekend/Holiday</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Attendance Summary */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Attendance Summary - {getMonthName(selectedAttendanceMonth)} {selectedAttendanceYear}</CardTitle>
-              <CardDescription>{selectedAttendanceDepartment} Department Statistics</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-                <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                  <p className="text-2xl font-bold text-green-600 dark:text-green-400">{attendanceSummary.averageAttendance}%</p>
-                  <p className="text-sm text-green-700 dark:text-green-300">Average Attendance</p>
-                </div>
-                <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                  <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{attendanceSummary.totalPresent}</p>
-                  <p className="text-sm text-blue-700 dark:text-blue-300">Total Present</p>
-                </div>
-                <div className="text-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-                  <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{attendanceSummary.totalLate}</p>
-                  <p className="text-sm text-yellow-700 dark:text-yellow-300">Total Late</p>
-                </div>
-                <div className="text-center p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-                  <p className="text-2xl font-bold text-red-600 dark:text-red-400">{attendanceSummary.totalAbsent}</p>
-                  <p className="text-sm text-red-700 dark:text-red-300">Total Absent</p>
-                </div>
-                <div className="text-center p-4 bg-gray-50 dark:bg-gray-900/20 rounded-lg border border-gray-200 dark:border-gray-800">
-                  <p className="text-2xl font-bold text-gray-600 dark:text-gray-400">{attendanceSummary.workingDays}</p>
-                  <p className="text-sm text-gray-700 dark:text-gray-300">Working Days</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Department KPI Chart - Updated with multi-selection */}
-          <Card>
-            <CardHeader>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                  <CardTitle>Department KPI Performance (Last 12 Months)</CardTitle>
+                  <CardTitle>Department KPI Performance</CardTitle>
                   <CardDescription>
                     Monthly KPI trends for selected departments ({selectedDepartments.length} selected)
                   </CardDescription>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="flex gap-2">
+                    <Select value={chartStartMonth.toString()} onValueChange={(value) => setChartStartMonth(parseInt(value))}>
+                      <SelectTrigger className="w-32">
+                        <SelectValue placeholder="Start Month" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getMonthOptions().map((month) => (
+                          <SelectItem key={month.value} value={month.value.toString()}>
+                            {month.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={chartStartYear.toString()} onValueChange={(value) => setChartStartYear(parseInt(value))}>
+                      <SelectTrigger className="w-20">
+                        <SelectValue placeholder="Year" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getYearOptions().map((year) => (
+                          <SelectItem key={year} value={year.toString()}>
+                            {year}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <span className="flex items-center px-2 text-muted-foreground">to</span>
+                    <Select value={chartEndMonth.toString()} onValueChange={(value) => setChartEndMonth(parseInt(value))}>
+                      <SelectTrigger className="w-32">
+                        <SelectValue placeholder="End Month" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getMonthOptions().map((month) => (
+                          <SelectItem key={month.value} value={month.value.toString()}>
+                            {month.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={chartEndYear.toString()} onValueChange={(value) => setChartEndYear(parseInt(value))}>
+                      <SelectTrigger className="w-20">
+                        <SelectValue placeholder="Year" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getYearOptions().map((year) => (
+                          <SelectItem key={year} value={year.toString()}>
+                            {year}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" className="w-48">
@@ -832,6 +771,181 @@ export const Dashboard = () => {
                     ))}
                   </LineChart>
                 </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Employee Attendance Table */}
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <CardTitle>Employee Attendance - {getMonthName(selectedAttendanceMonth)} {selectedAttendanceYear}</CardTitle>
+                  <CardDescription>Daily attendance tracking for {selectedAttendanceDepartment} department</CardDescription>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Select value={selectedAttendanceDepartment} onValueChange={setSelectedAttendanceDepartment}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments.map((dept) => (
+                        <SelectItem key={dept} value={dept}>
+                          {dept}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={selectedAttendanceMonth.toString()} onValueChange={(value) => setSelectedAttendanceMonth(parseInt(value))}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue placeholder="Month" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getMonthOptions().map((month) => (
+                        <SelectItem key={month.value} value={month.value.toString()}>
+                          {month.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={selectedAttendanceYear.toString()} onValueChange={(value) => setSelectedAttendanceYear(parseInt(value))}>
+                    <SelectTrigger className="w-20">
+                      <SelectValue placeholder="Year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getYearOptions().map((year) => (
+                        <SelectItem key={year} value={year.toString()}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto relative">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="sticky left-0 bg-background z-20 border-r font-semibold min-w-[120px] shadow-sm">Employee</TableHead>
+                      {days.map((dayInfo) => (
+                        <TableHead key={dayInfo.day} className={`text-center min-w-[40px] text-xs ${dayInfo.isWeekend ? 'bg-muted/50 text-muted-foreground' : ''}`}>
+                          <div className="flex flex-col">
+                            <span>{dayInfo.day}</span>
+                            <span className="text-xs">{dayInfo.dayName}</span>
+                          </div>
+                        </TableHead>
+                      ))}
+                      <TableHead className="sticky right-[200px] bg-background z-20 text-center font-semibold border-l shadow-sm min-w-[60px]">Present</TableHead>
+                      <TableHead className="sticky right-[140px] bg-background z-20 text-center font-semibold shadow-sm min-w-[60px]">Late</TableHead>
+                      <TableHead className="sticky right-[80px] bg-background z-20 text-center font-semibold shadow-sm min-w-[60px]">Absent</TableHead>
+                      <TableHead className="sticky right-0 bg-background z-20 text-center font-semibold shadow-sm min-w-[80px]">Rate %</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {attendanceData.map((employee) => (
+                      <TableRow key={employee.id}>
+                        <TableCell className="sticky left-0 bg-background z-20 border-r font-medium shadow-sm">
+                          {employee.name}
+                        </TableCell>
+                        {days.map((dayInfo) => {
+                          const status = employee[`day${dayInfo.day}` as keyof typeof employee] as string;
+                          return (
+                            <TableCell 
+                              key={dayInfo.day} 
+                              className={`text-center text-sm ${dayInfo.isWeekend ? 'bg-muted/30' : ''}`}
+                            >
+                              <span className={`
+                                inline-block w-6 h-6 rounded text-xs leading-6 font-medium
+                                ${status === '✓' ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300' : 
+                                  status === 'L' ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300' : 
+                                  status === 'X' ? 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300' : 
+                                  'text-muted-foreground'}
+                              `}>
+                                {status}
+                              </span>
+                            </TableCell>
+                          );
+                        })}
+                        <TableCell className="sticky right-[200px] bg-background z-20 text-center font-medium border-l text-green-700 dark:text-green-400 shadow-sm">
+                          {employee.presentDays}
+                        </TableCell>
+                        <TableCell className="sticky right-[140px] bg-background z-20 text-center font-medium text-yellow-700 dark:text-yellow-400 shadow-sm">
+                          {employee.lateDays}
+                        </TableCell>
+                        <TableCell className="sticky right-[80px] bg-background z-20 text-center font-medium text-red-700 dark:text-red-400 shadow-sm">
+                          {employee.absentDays}
+                        </TableCell>
+                        <TableCell className="sticky right-0 bg-background z-20 text-center font-medium shadow-sm">
+                          <Badge 
+                            variant="outline" 
+                            className={`
+                              ${employee.attendanceRate >= 95 ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300 border-green-200 dark:border-green-800' : 
+                                employee.attendanceRate >= 85 ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800' : 
+                                employee.attendanceRate >= 75 ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800' : 
+                                'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800'}
+                            `}
+                          >
+                            {employee.attendanceRate}%
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              
+              {/* Legend */}
+              <div className="mt-4 flex flex-wrap gap-4 text-sm text-foreground">
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300 text-center">✓</span>
+                  <span>Present</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300 text-center">L</span>
+                  <span>Late</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300 text-center">X</span>
+                  <span>Absent</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium text-muted-foreground text-center">-</span>
+                  <span>Weekend/Holiday</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Attendance Summary */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Attendance Summary - {getMonthName(selectedAttendanceMonth)} {selectedAttendanceYear}</CardTitle>
+              <CardDescription>{selectedAttendanceDepartment} Department Statistics</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+                <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                  <p className="text-2xl font-bold text-green-600 dark:text-green-400">{attendanceSummary.averageAttendance}%</p>
+                  <p className="text-sm text-green-700 dark:text-green-300">Average Attendance</p>
+                </div>
+                <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{attendanceSummary.totalPresent}</p>
+                  <p className="text-sm text-blue-700 dark:text-blue-300">Total Present</p>
+                </div>
+                <div className="text-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                  <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{attendanceSummary.totalLate}</p>
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300">Total Late</p>
+                </div>
+                <div className="text-center p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                  <p className="text-2xl font-bold text-red-600 dark:text-red-400">{attendanceSummary.totalAbsent}</p>
+                  <p className="text-sm text-red-700 dark:text-red-300">Total Absent</p>
+                </div>
+                <div className="text-center p-4 bg-gray-50 dark:bg-gray-900/20 rounded-lg border border-gray-200 dark:border-gray-800">
+                  <p className="text-2xl font-bold text-gray-600 dark:text-gray-400">{attendanceSummary.workingDays}</p>
+                  <p className="text-sm text-gray-700 dark:text-gray-300">Working Days</p>
+                </div>
               </div>
             </CardContent>
           </Card>
