@@ -104,6 +104,11 @@ export const authAPI = {
     const response = await api.get<UserResponse>('/api/auth/me');
     return response.data;
   },
+
+  changePassword: async (data: { currentPassword: string; newPassword: string }): Promise<{ status: number; message: string }> => {
+    const response = await api.post<{ status: number; message: string }>('/api/auth/change-password', data);
+    return response.data;
+  },
 };
 
 export const departemenAPI = {
@@ -160,6 +165,17 @@ export const karyawanAPI = {
 
   getById: async (id: string): Promise<KaryawanSingleResponse> => {
     const response = await api.get<KaryawanSingleResponse>(`/api/karyawan/${id}`);
+    return response.data;
+  },
+
+  getMyProfile: async (): Promise<KaryawanSingleResponse> => {
+    const response = await api.get<KaryawanSingleResponse>('/api/karyawan/me');
+    return response.data;
+  },
+
+  updateProfile: async (data: Partial<KaryawanUpdateRequest>): Promise<KaryawanSingleResponse> => {
+    console.log('Updating Profile:', { data });
+    const response = await api.put<KaryawanSingleResponse>('/api/karyawan/me', data);
     return response.data;
   },
 

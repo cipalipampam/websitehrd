@@ -27,17 +27,17 @@ export const Sidebar = () => {
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <div className="flex h-screen w-64 flex-col border-r bg-gray-50">
+    <div className="flex h-screen w-64 flex-col border-r bg-muted/30">
       {/* Header */}
       <div className="flex-shrink-0 p-6">
-        <h2 className="text-2xl font-bold text-gray-800">Dashboard</h2>
+        <h2 className="text-2xl font-bold text-foreground">Dashboard</h2>
       </div>
 
       <Separator />
 
       {/* User Info */}
       <div className="flex-shrink-0 p-4">
-        <div className="flex items-center gap-3 rounded-lg bg-white p-3 shadow-sm">
+        <div className="flex items-center gap-3 rounded-lg bg-card p-3 shadow-sm border">
           <Avatar>
             <AvatarFallback className="bg-blue-500 text-white">
               {user ? getInitials(user.username) : "U"}
@@ -45,8 +45,8 @@ export const Sidebar = () => {
           </Avatar>
           <div className="flex-1 overflow-hidden">
             <p className="truncate font-semibold text-sm">{user?.username}</p>
-            <p className="truncate text-xs text-gray-500">{user?.email}</p>
-            <span className="inline-block mt-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">
+            <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
+            <span className="inline-block mt-1 rounded-full bg-blue-100 dark:bg-blue-900 px-2 py-0.5 text-xs text-blue-700 dark:text-blue-300">
               {user?.role}
             </span>
           </div>

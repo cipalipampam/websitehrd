@@ -138,9 +138,9 @@ export const Pelatihan = () => {
   };
 
   return (
-    <div className="flex">
+    <div className="flex h-screen bg-background">
       <Sidebar />
-      <div className="p-6 w-full">
+      <div className="p-6 w-full overflow-y-auto">
         <Card>
           <CardHeader>
             <CardTitle>Pelatihan</CardTitle>
@@ -184,15 +184,15 @@ export const Pelatihan = () => {
                     <h3 className="font-semibold mb-2">Semua Pelatihan</h3>
                     <ul className="space-y-2">
                       {allPel.map((p) => (
-                        <li key={p.id} className="p-3 border rounded bg-white">
+                        <li key={p.id} className="p-3 border rounded bg-card">
                           <div className="flex justify-between items-center">
                             <div className="flex-1">
                               <div className="font-medium">{p.nama}</div>
-                              <div className="text-sm text-gray-500">{new Date(p.tanggal).toLocaleDateString()} — {p.lokasi}</div>
+                              <div className="text-sm text-muted-foreground">{new Date(p.tanggal).toLocaleDateString()} — {p.lokasi}</div>
                               {p.pelatihandetail && (
                                 <div className="flex items-center gap-2 mt-1">
-                                  <Users size={14} className="text-gray-400" />
-                                  <span className="text-xs text-gray-600">{p.pelatihandetail.length} Peserta</span>
+                                  <Users size={14} className="text-muted-foreground" />
+                                  <span className="text-xs text-muted-foreground">{p.pelatihandetail.length} Peserta</span>
                                 </div>
                               )}
                             </div>
@@ -209,10 +209,10 @@ export const Pelatihan = () => {
                     <h3 className="font-semibold mb-2">Pelatihan Tersedia</h3>
                     <ul className="space-y-2 mb-6">
                       {available.map((p) => (
-                        <li key={p.id} className="p-3 border rounded bg-white flex justify-between items-center">
+                        <li key={p.id} className="p-3 border rounded bg-card flex justify-between items-center">
                           <div>
                             <div className="font-medium">{p.nama}</div>
-                            <div className="text-sm text-gray-500">{new Date(p.tanggal).toLocaleDateString()} — {p.lokasi}</div>
+                            <div className="text-sm text-muted-foreground">{new Date(p.tanggal).toLocaleDateString()} — {p.lokasi}</div>
                           </div>
                           <div>
                             <Button onClick={() => handleJoin(p.id)} disabled={submitting}>Join</Button>
@@ -224,9 +224,9 @@ export const Pelatihan = () => {
                     <h3 className="font-semibold mb-2">Pelatihan Saya</h3>
                     <ul className="space-y-2">
                       {myTrainings.map((m) => (
-                        <li key={m.id} className="p-3 border rounded bg-white">
+                        <li key={m.id} className="p-3 border rounded bg-card">
                           <div className="font-medium">{m.pelatihan.nama}</div>
-                          <div className="text-sm text-gray-500">{new Date(m.pelatihan.tanggal).toLocaleDateString()} — {m.pelatihan.lokasi}</div>
+                          <div className="text-sm text-muted-foreground">{new Date(m.pelatihan.tanggal).toLocaleDateString()} — {m.pelatihan.lokasi}</div>
                         </li>
                       ))}
                     </ul>
@@ -290,7 +290,7 @@ export const Pelatihan = () => {
                           {detail.skor !== null ? (
                             <span className="font-semibold">{detail.skor}</span>
                           ) : (
-                            <span className="text-gray-400 text-sm">-</span>
+                            <span className="text-muted-foreground text-sm">-</span>
                           )}
                         </TableCell>
                       </TableRow>
@@ -298,7 +298,7 @@ export const Pelatihan = () => {
                   </TableBody>
                 </Table>
               ) : (
-                <div className="text-center py-8 text-gray-500">
+                <div className="text-center py-8 text-muted-foreground">
                   Belum ada peserta yang mendaftar
                 </div>
               )}

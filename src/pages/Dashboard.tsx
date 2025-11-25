@@ -353,7 +353,7 @@ export const Dashboard = () => {
   const attendanceData = getAttendanceData();
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-background">
       <Sidebar />
       
       <main className="flex-1 overflow-y-auto p-8">
@@ -493,9 +493,9 @@ export const Dashboard = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="sticky left-0 bg-white z-10 border-r font-semibold">Employee</TableHead>
+                      <TableHead className="sticky left-0 bg-background z-10 border-r font-semibold">Employee</TableHead>
                       {days.map((dayInfo) => (
-                        <TableHead key={dayInfo.day} className={`text-center min-w-[40px] text-xs ${dayInfo.isWeekend ? 'bg-gray-100 text-gray-500' : ''}`}>
+                        <TableHead key={dayInfo.day} className={`text-center min-w-[40px] text-xs ${dayInfo.isWeekend ? 'bg-muted/50 text-muted-foreground' : ''}`}>
                           <div className="flex flex-col">
                             <span>{dayInfo.day}</span>
                             <span className="text-xs">{dayInfo.dayName}</span>
@@ -511,7 +511,7 @@ export const Dashboard = () => {
                   <TableBody>
                     {attendanceData.map((employee) => (
                       <TableRow key={employee.id}>
-                        <TableCell className="sticky left-0 bg-white z-10 border-r font-medium">
+                        <TableCell className="sticky left-0 bg-background z-10 border-r font-medium">
                           {employee.name}
                         </TableCell>
                         {days.map((dayInfo) => {
@@ -519,37 +519,37 @@ export const Dashboard = () => {
                           return (
                             <TableCell 
                               key={dayInfo.day} 
-                              className={`text-center text-sm ${dayInfo.isWeekend ? 'bg-gray-50' : ''}`}
+                              className={`text-center text-sm ${dayInfo.isWeekend ? 'bg-muted/30' : ''}`}
                             >
                               <span className={`
                                 inline-block w-6 h-6 rounded text-xs leading-6 font-medium
-                                ${status === '✓' ? 'bg-green-100 text-green-800' : 
-                                  status === 'L' ? 'bg-yellow-100 text-yellow-800' : 
-                                  status === 'X' ? 'bg-red-100 text-red-800' : 
-                                  'text-gray-400'}
+                                ${status === '✓' ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300' : 
+                                  status === 'L' ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300' : 
+                                  status === 'X' ? 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300' : 
+                                  'text-muted-foreground'}
                               `}>
                                 {status}
                               </span>
                             </TableCell>
                           );
                         })}
-                        <TableCell className="text-center font-medium border-l text-green-700">
+                        <TableCell className="text-center font-medium border-l text-green-700 dark:text-green-400">
                           {employee.presentDays}
                         </TableCell>
-                        <TableCell className="text-center font-medium text-yellow-700">
+                        <TableCell className="text-center font-medium text-yellow-700 dark:text-yellow-400">
                           {employee.lateDays}
                         </TableCell>
-                        <TableCell className="text-center font-medium text-red-700">
+                        <TableCell className="text-center font-medium text-red-700 dark:text-red-400">
                           {employee.absentDays}
                         </TableCell>
                         <TableCell className="text-center font-medium">
                           <Badge 
                             variant="outline" 
                             className={`
-                              ${employee.attendanceRate >= 95 ? 'bg-green-100 text-green-800 border-green-200' : 
-                                employee.attendanceRate >= 85 ? 'bg-blue-100 text-blue-800 border-blue-200' : 
-                                employee.attendanceRate >= 75 ? 'bg-yellow-100 text-yellow-800 border-yellow-200' : 
-                                'bg-red-100 text-red-800 border-red-200'}
+                              ${employee.attendanceRate >= 95 ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300 border-green-200 dark:border-green-800' : 
+                                employee.attendanceRate >= 85 ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800' : 
+                                employee.attendanceRate >= 75 ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800' : 
+                                'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800'}
                             `}
                           >
                             {employee.attendanceRate}%
@@ -562,21 +562,21 @@ export const Dashboard = () => {
               </div>
               
               {/* Legend */}
-              <div className="mt-4 flex flex-wrap gap-4 text-sm">
+              <div className="mt-4 flex flex-wrap gap-4 text-sm text-foreground">
                 <div className="flex items-center gap-2">
-                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium bg-green-100 text-green-800 text-center">✓</span>
+                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300 text-center">✓</span>
                   <span>Present</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium bg-yellow-100 text-yellow-800 text-center">L</span>
+                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300 text-center">L</span>
                   <span>Late</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium bg-red-100 text-red-800 text-center">X</span>
+                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300 text-center">X</span>
                   <span>Absent</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium text-gray-400 text-center">-</span>
+                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium text-muted-foreground text-center">-</span>
                   <span>Weekend/Holiday</span>
                 </div>
               </div>

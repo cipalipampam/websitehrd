@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
@@ -10,8 +11,17 @@ import { KpiIndicators } from './pages/KpiIndicators';
 import { Penghargaan } from './pages/penghargaan';
 import { Predict } from './pages/Predict';
 import { Pelatihan } from './pages/Pelatihan';
+import { Profile } from './pages/Profile';
+import { Settings } from './pages/Settings';
 
 function App() {
+  // Apply saved theme on initial load
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('site-theme') || 'light';
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(savedTheme);
+  }, []);
+
   return (
     <BrowserRouter>
       <Routes>
@@ -86,6 +96,22 @@ function App() {
           element={
             <ProtectedRoute>
               <Pelatihan />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <Settings />
             </ProtectedRoute>
           }
         />
