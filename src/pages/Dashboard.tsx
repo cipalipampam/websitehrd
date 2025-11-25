@@ -58,6 +58,7 @@ const employeeData = {
     { id: 2, name: 'Bob Smith', position: 'Recruitment Specialist', performance: 87, productivity: 85, attendance: 92, rating: 'Good' },
     { id: 3, name: 'Carol Davis', position: 'Training Coordinator', performance: 91, productivity: 89, attendance: 96, rating: 'Excellent' },
     { id: 4, name: 'David Wilson', position: 'HR Assistant', performance: 82, productivity: 78, attendance: 88, rating: 'Average' },
+    { id: 5, name: 'David Wilson', position: 'HR Assistant', performance: 82, productivity: 78, attendance: 88, rating: 'Average' },
   ],
   Finance: [
     { id: 5, name: 'Emma Brown', position: 'Finance Manager', performance: 98, productivity: 95, attendance: 99, rating: 'Excellent' },
@@ -163,6 +164,7 @@ export const Dashboard = () => {
   const { user, fetchUser } = useAuthStore();
   const [selectedDepartment, setSelectedDepartment] = useState('All');
   const [selectedEmployeeDepartment, setSelectedEmployeeDepartment] = useState('HR');
+  const [selectedAttendanceDepartment, setSelectedAttendanceDepartment] = useState('HR');
   const [selectedYear] = useState(new Date().getFullYear());
 
   useEffect(() => {
@@ -170,6 +172,83 @@ export const Dashboard = () => {
       console.error('Failed to fetch user:', error.message);
     });
   }, [fetchUser]);
+
+  // Generate attendance data for current month
+  const getAttendanceData = () => {
+    const currentDate = new Date();
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    
+    const employees = employeeData[selectedAttendanceDepartment as keyof typeof employeeData] || [];
+    
+    const attendanceData = employees.map(employee => {
+      const dailyAttendance: { [key: string]: string } = {};
+      
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, month, day);
+        const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+        
+        if (isWeekend) {
+          dailyAttendance[`day${day}`] = '-';
+        } else {
+          // Simulate attendance status based on employee performance
+          const rand = Math.random();
+          const baseAttendanceRate = employee.attendance / 100;
+          
+          if (rand < baseAttendanceRate * 0.85) {
+            dailyAttendance[`day${day}`] = '✓'; // Present
+          } else if (rand < baseAttendanceRate * 0.95) {
+            dailyAttendance[`day${day}`] = 'L'; // Late
+          } else {
+            dailyAttendance[`day${day}`] = 'X'; // Absent
+          }
+        }
+      }
+      
+      // Calculate monthly statistics
+      const workingDays = Object.values(dailyAttendance).filter(status => status !== '-');
+      const presentDays = workingDays.filter(status => status === '✓' || status === 'L').length;
+      const lateDays = workingDays.filter(status => status === 'L').length;
+      const absentDays = workingDays.filter(status => status === 'X').length;
+      const attendanceRate = Math.round((presentDays / workingDays.length) * 100);
+      
+      return {
+        ...employee,
+        ...dailyAttendance,
+        presentDays,
+        lateDays,
+        absentDays,
+        attendanceRate,
+        totalWorkingDays: workingDays.length
+      };
+    });
+    
+    return attendanceData;
+  };
+
+  // Get days array for current month
+  const getCurrentMonthDays = () => {
+    const currentDate = new Date();
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    
+    const days = [];
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, month, day);
+      const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+      
+      days.push({
+        day,
+        dayName,
+        isWeekend
+      });
+    }
+    
+    return days;
+  };
 
   // Get last 12 months from current month
   const getLast12MonthsData = () => {
@@ -269,6 +348,9 @@ export const Dashboard = () => {
       avgPerformance: Math.round(avgPerformance),
     };
   };
+
+  const days = getCurrentMonthDays();
+  const attendanceData = getAttendanceData();
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -383,6 +465,123 @@ export const Dashboard = () => {
               );
             })}
           </div>
+
+          {/* Employee Attendance Table */}
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <CardTitle>Employee Attendance - {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</CardTitle>
+                  <CardDescription>Daily attendance tracking for {selectedAttendanceDepartment} department</CardDescription>
+                </div>
+                <Select value={selectedAttendanceDepartment} onValueChange={setSelectedAttendanceDepartment}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Select Department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.slice(1).map((dept) => (
+                      <SelectItem key={dept} value={dept}>
+                        {dept}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="sticky left-0 bg-white z-10 border-r font-semibold">Employee</TableHead>
+                      {days.map((dayInfo) => (
+                        <TableHead key={dayInfo.day} className={`text-center min-w-[40px] text-xs ${dayInfo.isWeekend ? 'bg-gray-100 text-gray-500' : ''}`}>
+                          <div className="flex flex-col">
+                            <span>{dayInfo.day}</span>
+                            <span className="text-xs">{dayInfo.dayName}</span>
+                          </div>
+                        </TableHead>
+                      ))}
+                      <TableHead className="text-center font-semibold border-l">Present</TableHead>
+                      <TableHead className="text-center font-semibold">Late</TableHead>
+                      <TableHead className="text-center font-semibold">Absent</TableHead>
+                      <TableHead className="text-center font-semibold">Rate %</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {attendanceData.map((employee) => (
+                      <TableRow key={employee.id}>
+                        <TableCell className="sticky left-0 bg-white z-10 border-r font-medium">
+                          {employee.name}
+                        </TableCell>
+                        {days.map((dayInfo) => {
+                          const status = employee[`day${dayInfo.day}` as keyof typeof employee] as string;
+                          return (
+                            <TableCell 
+                              key={dayInfo.day} 
+                              className={`text-center text-sm ${dayInfo.isWeekend ? 'bg-gray-50' : ''}`}
+                            >
+                              <span className={`
+                                inline-block w-6 h-6 rounded text-xs leading-6 font-medium
+                                ${status === '✓' ? 'bg-green-100 text-green-800' : 
+                                  status === 'L' ? 'bg-yellow-100 text-yellow-800' : 
+                                  status === 'X' ? 'bg-red-100 text-red-800' : 
+                                  'text-gray-400'}
+                              `}>
+                                {status}
+                              </span>
+                            </TableCell>
+                          );
+                        })}
+                        <TableCell className="text-center font-medium border-l text-green-700">
+                          {employee.presentDays}
+                        </TableCell>
+                        <TableCell className="text-center font-medium text-yellow-700">
+                          {employee.lateDays}
+                        </TableCell>
+                        <TableCell className="text-center font-medium text-red-700">
+                          {employee.absentDays}
+                        </TableCell>
+                        <TableCell className="text-center font-medium">
+                          <Badge 
+                            variant="outline" 
+                            className={`
+                              ${employee.attendanceRate >= 95 ? 'bg-green-100 text-green-800 border-green-200' : 
+                                employee.attendanceRate >= 85 ? 'bg-blue-100 text-blue-800 border-blue-200' : 
+                                employee.attendanceRate >= 75 ? 'bg-yellow-100 text-yellow-800 border-yellow-200' : 
+                                'bg-red-100 text-red-800 border-red-200'}
+                            `}
+                          >
+                            {employee.attendanceRate}%
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              
+              {/* Legend */}
+              <div className="mt-4 flex flex-wrap gap-4 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium bg-green-100 text-green-800 text-center">✓</span>
+                  <span>Present</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium bg-yellow-100 text-yellow-800 text-center">L</span>
+                  <span>Late</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium bg-red-100 text-red-800 text-center">X</span>
+                  <span>Absent</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium text-gray-400 text-center">-</span>
+                  <span>Weekend/Holiday</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Department KPI Chart */}
           <Card>
