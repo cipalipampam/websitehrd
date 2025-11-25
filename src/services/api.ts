@@ -343,3 +343,43 @@ export const predictAPI = {
 };
 
 export default api;
+
+export const pelatihanAPI = {
+  // HR: get all pelatihan
+  getAll: async () => {
+    const response = await api.get('/api/pelatihan');
+    return response.data;
+  },
+
+  // Authenticated users: get available pelatihan
+  getAvailable: async () => {
+    const response = await api.get('/api/pelatihan/available');
+    return response.data;
+  },
+
+  // Get my joined pelatihan
+  getMy: async () => {
+    const response = await api.get('/api/pelatihan/my');
+    return response.data;
+  },
+
+  create: async (data: { nama: string; tanggal: string; lokasi: string }) => {
+    const response = await api.post('/api/pelatihan', data);
+    return response.data;
+  },
+
+  join: async (id: string) => {
+    const response = await api.post(`/api/pelatihan/${id}/join`);
+    return response.data;
+  },
+
+  confirm: async (id: string) => {
+    const response = await api.post(`/api/pelatihan/${id}/confirm`);
+    return response.data;
+  },
+
+  decline: async (id: string, alasan?: string) => {
+    const response = await api.post(`/api/pelatihan/${id}/decline`, { alasan });
+    return response.data;
+  }
+};

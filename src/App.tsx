@@ -9,6 +9,7 @@ import { Kpi } from './pages/Kpi';
 import { KpiIndicators } from './pages/KpiIndicators';
 import { Penghargaan } from './pages/penghargaan';
 import { Predict } from './pages/Predict';
+import { Pelatihan } from './pages/Pelatihan';
 
 function App() {
   return (
@@ -77,6 +78,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Predict />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/pelatihan"
+          element={
+            <ProtectedRoute>
+              <Pelatihan />
             </ProtectedRoute>
           }
         />

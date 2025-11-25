@@ -118,6 +118,14 @@ export const Sidebar = () => {
               <Award size={20} />
               Penghargaan
             </Button>
+            <Button
+              variant={isActive("/pelatihan") ? "secondary" : "ghost"}
+              className="w-full justify-start gap-3"
+              onClick={() => navigate("/pelatihan")}
+            >
+              <Award size={20} />
+              Pelatihan
+            </Button>
             
             <Button
               variant={isActive("/predict") ? "secondary" : "ghost"}
