@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { useAuthStore } from '../stores/authStore';
-import { departemenAPI } from '../services/api';
+import { departemenAPI, kehadiranAPI } from '../services/api';
 import { karyawanAPI } from '../services/api';
+import type { Kehadiran } from '../types/kehadiran';
 
 import {
   Card,
@@ -211,6 +212,9 @@ export const Dashboard = () => {
   const [selectedAttendanceMonth, setSelectedAttendanceMonth] = useState(new Date().getMonth());
   const [selectedAttendanceYear, setSelectedAttendanceYear] = useState(new Date().getFullYear());
   const [karyawan, setKaryawan] = useState<any[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<Kehadiran[]>([]);
+  const [loadingAttendance, setLoadingAttendance] = useState(false);
+  const [errorAttendance, setErrorAttendance] = useState<string | null>(null);
   const [chartStartMonth, setChartStartMonth] = useState(new Date().getMonth() - 11);
   const [chartStartYear, setChartStartYear] = useState(new Date().getFullYear());
   const [chartEndMonth, setChartEndMonth] = useState(new Date().getMonth());
@@ -218,7 +222,6 @@ export const Dashboard = () => {
 
 
 const [departments, setDepartments] = useState<string[]>([]);
-const [loadingDepartments, setLoadingDepartments] = useState(true);
 
 useEffect(() => {
   fetchUser().catch(console.error);
@@ -237,8 +240,6 @@ useEffect(() => {
       setSelectedAttendanceDepartment(names[0]);
     } catch (err) {
       console.error("Failed to load departments", err);
-    } finally {
-      setLoadingDepartments(false);
     }
   };
 
@@ -257,6 +258,35 @@ useEffect(() => {
 
   loadKaryawan();
 }, []);
+
+  // Fetch attendance data when filters change
+  useEffect(() => {
+    const loadAttendanceData = async () => {
+      if (!user) return;
+      
+      setLoadingAttendance(true);
+      setErrorAttendance(null);
+      
+      try {
+        // HR can view all attendance, filter by month/year
+        const params = {
+          month: selectedAttendanceMonth + 1, // Backend expects 1-based month
+          year: selectedAttendanceYear,
+        };
+        
+        const response = await kehadiranAPI.getAll(params);
+        setAttendanceRecords(response.data || []);
+      } catch (err: any) {
+        console.error('Failed to load attendance data:', err);
+        setErrorAttendance(err.response?.data?.message || err.message || 'Failed to load attendance data');
+        setAttendanceRecords([]);
+      } finally {
+        setLoadingAttendance(false);
+      }
+    };
+
+    loadAttendanceData();
+  }, [selectedAttendanceMonth, selectedAttendanceYear, user]);
 
   useEffect(() => {
     fetchUser().catch((error: Error) => {
@@ -318,16 +348,50 @@ useEffect(() => {
     setSelectedDepartments(['Analytics']); // Keep at least one selected
   };
 
-  // Generate attendance data for selected month and year
+  // Generate attendance data from API records
   const getAttendanceData = () => {
     const year = selectedAttendanceYear;
     const month = selectedAttendanceMonth;
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     
-    const employees = employeeData[selectedAttendanceDepartment as keyof typeof employeeData] || [];
-    
-    const attendanceData = employees.map(employee => {
+    // Filter attendance records by selected department
+    const filteredRecords = attendanceRecords.filter(record => {
+      const karyawanDept = record.karyawan?.departemen?.[0]?.nama;
+      return karyawanDept === selectedAttendanceDepartment;
+    });
+
+    // Group by karyawan
+    const karyawanMap = new Map<string, {
+      id: string;
+      name: string;
+      position: string;
+      records: Map<number, Kehadiran>;
+    }>();
+
+    filteredRecords.forEach(record => {
+      const karyawanId = record.karyawanId;
+      const recordDate = new Date(record.tanggal);
+      const day = recordDate.getDate();
+      
+      if (!karyawanMap.has(karyawanId)) {
+        karyawanMap.set(karyawanId, {
+          id: karyawanId,
+          name: record.karyawan?.nama || 'Unknown',
+          position: record.karyawan?.jabatan?.[0]?.nama || '-',
+          records: new Map(),
+        });
+      }
+      
+      karyawanMap.get(karyawanId)!.records.set(day, record);
+    });
+
+    // Build attendance data for each employee
+    const attendanceData = Array.from(karyawanMap.values()).map(employeeData => {
       const dailyAttendance: { [key: string]: string } = {};
+      let presentDays = 0;
+      let lateDays = 0;
+      let absentDays = 0;
+      let workingDaysCount = 0;
       
       for (let day = 1; day <= daysInMonth; day++) {
         const date = new Date(year, month, day);
@@ -336,38 +400,47 @@ useEffect(() => {
         if (isWeekend) {
           dailyAttendance[`day${day}`] = '-';
         } else {
-          // Simulate attendance status with consistent seed
-          const seed = employee.id + day + month * 31 + year * 365;
-          const rand = Math.sin(seed) * 10000 % 1;
-          const normalizedRand = Math.abs(rand);
-          const baseAttendanceRate = employee.attendance / 100;
+          workingDaysCount++;
+          const record = employeeData.records.get(day);
           
-          if (normalizedRand < baseAttendanceRate * 0.85) {
-            dailyAttendance[`day${day}`] = '✓'; // Present
-          } else if (normalizedRand < baseAttendanceRate * 0.95) {
-            dailyAttendance[`day${day}`] = 'L'; // Late
+          if (!record) {
+            dailyAttendance[`day${day}`] = 'X'; // No record = Absent
+            absentDays++;
           } else {
-            dailyAttendance[`day${day}`] = 'X'; // Absent
+            const status = record.status;
+            if (status === 'HADIR') {
+              dailyAttendance[`day${day}`] = '✓';
+              presentDays++;
+            } else if (status === 'TERLAMBAT') {
+              dailyAttendance[`day${day}`] = 'L';
+              lateDays++;
+            } else if (status === 'IZIN' || status === 'SAKIT') {
+              dailyAttendance[`day${day}`] = 'I'; // Izin/Sakit
+              presentDays++; // Count as attended for rate calculation
+            } else if (status === 'ALPA' || status === 'BELUM_ABSEN') {
+              dailyAttendance[`day${day}`] = 'X';
+              absentDays++;
+            } else {
+              dailyAttendance[`day${day}`] = 'X';
+              absentDays++;
+            }
           }
         }
       }
       
-      // Calculate monthly statistics
-      const workingDays = Object.values(dailyAttendance).filter(status => status !== '-');
-      const presentDays = workingDays.filter(status => status === '✓').length;
-      const lateDays = workingDays.filter(status => status === 'L').length;
-      const absentDays = workingDays.filter(status => status === 'X').length;
       const totalAttended = presentDays + lateDays;
-      const attendanceRate = workingDays.length > 0 ? Math.round((totalAttended / workingDays.length) * 100) : 0;
+      const attendanceRate = workingDaysCount > 0 ? Math.round((totalAttended / workingDaysCount) * 100) : 0;
       
       return {
-        ...employee,
+        id: employeeData.id,
+        name: employeeData.name,
+        position: employeeData.position,
         ...dailyAttendance,
         presentDays,
         lateDays,
         absentDays,
         attendanceRate,
-        totalWorkingDays: workingDays.length
+        totalWorkingDays: workingDaysCount
       };
     });
     
@@ -496,18 +569,6 @@ useEffect(() => {
   return karyawan.length;
 };
 
-
-  const getDepartmentStats = (dept: string) => {
-    const employees = employeeData[dept as keyof typeof employeeData] || [];
-    if (employees.length === 0) return { count: 0, avgPerformance: 0 };
-    
-    const avgPerformance = employees.reduce((sum, emp) => sum + emp.performance, 0) / employees.length;
-    return {
-      count: employees.length,
-      avgPerformance: Math.round(avgPerformance),
-    };
-  };
-
   // Get monthly attendance summary
   const getAttendanceSummary = () => {
     const attendanceData = getAttendanceData();
@@ -592,7 +653,6 @@ useEffect(() => {
           {/* Department Performance Summary */}
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             {departments.map((dept) => {
-  const last12MonthsData = getLast12MonthsData();
   const latestKPI = 80; // sementara kamu bisa ambil dari KPI API juga kalau mau
   const previousKPI = 75;
 
@@ -824,6 +884,46 @@ useEffect(() => {
               </div>
             </CardHeader>
             <CardContent>
+              {loadingAttendance ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                    <p className="text-sm text-muted-foreground">Loading attendance data...</p>
+                  </div>
+                </div>
+              ) : errorAttendance ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="flex flex-col items-center gap-3 text-center">
+                    <div className="rounded-full bg-red-100 dark:bg-red-900/20 p-3">
+                      <svg className="h-8 w-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <p className="text-sm font-medium text-foreground">Failed to load attendance data</p>
+                    <p className="text-sm text-muted-foreground max-w-md">{errorAttendance}</p>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => window.location.reload()}
+                    >
+                      Retry
+                    </Button>
+                  </div>
+                </div>
+              ) : attendanceData.length === 0 ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="flex flex-col items-center gap-3 text-center">
+                    <div className="rounded-full bg-gray-100 dark:bg-gray-800 p-3">
+                      <svg className="h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    <p className="text-sm font-medium text-foreground">No attendance data</p>
+                    <p className="text-sm text-muted-foreground">No employees found for {selectedAttendanceDepartment} department in {getMonthName(selectedAttendanceMonth)} {selectedAttendanceYear}</p>
+                  </div>
+                </div>
+              ) : (
+              <>
               <div className="overflow-x-auto relative">
                 <Table>
                   <TableHeader>
@@ -914,7 +1014,13 @@ useEffect(() => {
                   <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium text-muted-foreground text-center">-</span>
                   <span>Weekend/Holiday</span>
                 </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 text-center">I</span>
+                  <span>Izin/Sakit</span>
+                </div>
               </div>
+              </>
+              )}
             </CardContent>
           </Card>
 

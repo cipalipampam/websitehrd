@@ -33,6 +33,16 @@ import type {
   KaryawanPredictResponse,
   BatchPredictResponse,
 } from '@/types/predict';
+import type {
+  KehadiranResponse,
+  KehadiranSingleResponse,
+  KehadiranHistoryResponse,
+  KehadiranSummaryResponse,
+  CheckInRequest,
+  CheckOutRequest,
+  KehadiranCreateRequest,
+  KehadiranUpdateRequest,
+} from '@/types/kehadiran';
 
 
 
@@ -367,6 +377,12 @@ export const pelatihanAPI = {
     return response.data;
   },
 
+  // HR: get pelatihan by ID with participants
+  getById: async (id: string) => {
+    const response = await api.get(`/api/pelatihan/${id}`);
+    return response.data;
+  },
+
   // Authenticated users: get available pelatihan
   getAvailable: async () => {
     const response = await api.get('/api/pelatihan/available');
@@ -397,5 +413,98 @@ export const pelatihanAPI = {
   decline: async (id: string, alasan?: string) => {
     const response = await api.post(`/api/pelatihan/${id}/decline`, { alasan });
     return response.data;
+  },
+
+  // HR: update participant score
+  updateScore: async (pelatihanId: string, karyawanId: string, data: { skor: number; catatan?: string }) => {
+    const response = await api.put(`/api/pelatihan/${pelatihanId}/participant/${karyawanId}/score`, data);
+    return response.data;
   }
+};
+
+export const kehadiranAPI = {
+  // Check-in (untuk karyawan yang login)
+  checkIn: async (data: CheckInRequest): Promise<KehadiranSingleResponse> => {
+    const response = await api.post<KehadiranSingleResponse>('/api/kehadiran/check-in', data);
+    return response.data;
+  },
+
+  // Check-out (untuk karyawan yang login)
+  checkOut: async (data?: CheckOutRequest): Promise<KehadiranSingleResponse> => {
+    const response = await api.post<KehadiranSingleResponse>('/api/kehadiran/check-out', data || {});
+    return response.data;
+  },
+
+  // Get kehadiran hari ini untuk user yang login
+  getToday: async (): Promise<KehadiranSingleResponse> => {
+    const response = await api.get<KehadiranSingleResponse>('/api/kehadiran/today');
+    return response.data;
+  },
+
+  // Get riwayat kehadiran user yang login
+  getHistory: async (params?: { month?: number; year?: number }): Promise<KehadiranHistoryResponse> => {
+    const queryParams = new URLSearchParams();
+    if (params?.month !== undefined) queryParams.append('month', params.month.toString());
+    if (params?.year !== undefined) queryParams.append('year', params.year.toString());
+    
+    const queryString = queryParams.toString();
+    const endpoint = `/api/kehadiran/history${queryString ? `?${queryString}` : ''}`;
+    
+    const response = await api.get<KehadiranHistoryResponse>(endpoint);
+    return response.data;
+  },
+
+  // Get all kehadiran (HR only)
+  getAll: async (params?: { 
+    karyawanId?: string; 
+    month?: number; 
+    year?: number; 
+    status?: string;
+  }): Promise<KehadiranResponse> => {
+    const queryParams = new URLSearchParams();
+    if (params?.karyawanId) queryParams.append('karyawanId', params.karyawanId);
+    if (params?.month !== undefined) queryParams.append('month', params.month.toString());
+    if (params?.year !== undefined) queryParams.append('year', params.year.toString());
+    if (params?.status) queryParams.append('status', params.status);
+    
+    const queryString = queryParams.toString();
+    const endpoint = `/api/kehadiran${queryString ? `?${queryString}` : ''}`;
+    
+    const response = await api.get<KehadiranResponse>(endpoint);
+    return response.data;
+  },
+
+  // Get laporan summary (HR only)
+  getSummary: async (params?: { 
+    month?: number; 
+    year?: number; 
+  }): Promise<KehadiranSummaryResponse> => {
+    const queryParams = new URLSearchParams();
+    if (params?.month !== undefined) queryParams.append('month', params.month.toString());
+    if (params?.year !== undefined) queryParams.append('year', params.year.toString());
+    
+    const queryString = queryParams.toString();
+    const endpoint = `/api/kehadiran/report/summary${queryString ? `?${queryString}` : ''}`;
+    
+    const response = await api.get<KehadiranSummaryResponse>(endpoint);
+    return response.data;
+  },
+
+  // Create kehadiran manual (HR only)
+  create: async (data: KehadiranCreateRequest): Promise<KehadiranSingleResponse> => {
+    const response = await api.post<KehadiranSingleResponse>('/api/kehadiran', data);
+    return response.data;
+  },
+
+  // Update kehadiran (HR only)
+  update: async (id: string, data: KehadiranUpdateRequest): Promise<KehadiranSingleResponse> => {
+    const response = await api.put<KehadiranSingleResponse>(`/api/kehadiran/${id}`, data);
+    return response.data;
+  },
+
+  // Delete kehadiran (HR only)
+  delete: async (id: string): Promise<{ status: number; message: string }> => {
+    const response = await api.delete<{ status: number; message: string }>(`/api/kehadiran/${id}`);
+    return response.data;
+  },
 };
