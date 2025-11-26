@@ -141,20 +141,38 @@ export const Karyawan = () => {
     }
   };
 
-  const fetchJabatan = async () => {
+  const fetchJabatan = async (departemenId?: string) => {
     try {
-      const response = await jabatanAPI.getAll();
+      const params = departemenId ? { departemenId } : undefined;
+      const response = await jabatanAPI.getAll(params);
       setJabatan(response.data);
     } catch (error) {
       console.error("Error fetching jabatan:", error);
+      setJabatan([]);
     }
   };
 
   useEffect(() => {
     fetchKaryawan();
     fetchDepartemen();
-    fetchJabatan();
+    fetchJabatan(); // Load all jabatan initially
   }, []);
+
+  // Fetch jabatan when departemenId changes in form
+  useEffect(() => {
+    if (formData.departemenId) {
+      fetchJabatan(formData.departemenId);
+      // Reset jabatanId if departemen changes
+      if (formData.jabatanId) {
+        const selectedJabatan = jabatan.find(j => j.id === formData.jabatanId);
+        if (selectedJabatan && selectedJabatan.departemenId !== formData.departemenId) {
+          setFormData(prev => ({ ...prev, jabatanId: '' }));
+        }
+      }
+    } else {
+      setJabatan([]);
+    }
+  }, [formData.departemenId]);
 
  const handleOpenDialog = (karyawan?: KaryawanType) => {
   if (karyawan) {
@@ -402,9 +420,28 @@ export const Karyawan = () => {
                             {k.nama}
                           </TableCell>
                           <TableCell>{k.user?.email || "-"}</TableCell>
-                          <TableCell>{k.jabatan?.[0]?.nama || "-"}</TableCell>
                           <TableCell>
-                            {k.departemen?.[0]?.nama || "-"}
+                            {k.jabatan?.[0] ? (
+                              <div className="flex flex-col gap-1">
+                                <span>{k.jabatan[0].nama}</span>
+                                {k.jabatan[0].level && (
+                                  <span className="inline-flex w-fit items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
+                                    {k.jabatan[0].level}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              "-"
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {k.departemen?.[0]?.nama ? (
+                              <span className="inline-flex items-center rounded-full bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10">
+                                {k.departemen[0].nama}
+                              </span>
+                            ) : (
+                              "-"
+                            )}
                           </TableCell>
                           <TableCell>{k.no_telp}</TableCell>
                           <TableCell>{formatDate(k.tanggal_masuk)}</TableCell>
@@ -614,7 +651,9 @@ export const Karyawan = () => {
                 <h3 className="font-semibold text-sm">Informasi Pekerjaan</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="departemenId">Departemen</Label>
+                    <Label htmlFor="departemenId">
+                      Departemen <span className="text-red-500">*</span>
+                    </Label>
                     <Select
                       value={formData.departemenId || "none"}
                       onValueChange={(value) =>
@@ -626,7 +665,7 @@ export const Karyawan = () => {
                       disabled={submitting}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Pilih departemen" />
+                        <SelectValue placeholder="Pilih departemen terlebih dahulu" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Tidak ada</SelectItem>
@@ -639,7 +678,9 @@ export const Karyawan = () => {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="jabatanId">Jabatan</Label>
+                    <Label htmlFor="jabatanId">
+                      Jabatan <span className="text-red-500">*</span>
+                    </Label>
                     <Select
                       value={formData.jabatanId || "none"}
                       onValueChange={(value) =>
@@ -648,20 +689,37 @@ export const Karyawan = () => {
                           jabatanId: value === "none" ? "" : value 
                         })
                       }
-                      disabled={submitting}
+                      disabled={submitting || !formData.departemenId}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Pilih jabatan" />
+                        <SelectValue 
+                          placeholder={
+                            formData.departemenId 
+                              ? "Pilih jabatan" 
+                              : "Pilih departemen dulu"
+                          } 
+                        />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Tidak ada</SelectItem>
-                        {jabatan.map((jab) => (
-                          <SelectItem key={jab.id} value={jab.id}>
-                            {jab.nama}
+                        {jabatan.length === 0 && formData.departemenId ? (
+                          <SelectItem value="no-data" disabled>
+                            Tidak ada jabatan untuk departemen ini
                           </SelectItem>
-                        ))}
+                        ) : (
+                          jabatan.map((jab) => (
+                            <SelectItem key={jab.id} value={jab.id}>
+                              {jab.nama} {jab.level && `(${jab.level})`}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
+                    {formData.departemenId && jabatan.length === 0 && (
+                      <p className="text-xs text-yellow-600">
+                        Tidak ada jabatan tersedia untuk departemen ini
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="tanggal_masuk">Tanggal Masuk</Label>

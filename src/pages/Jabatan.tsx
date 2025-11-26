@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Sidebar } from '../components/Sidebar';
-import { jabatanAPI } from '../services/api';
+import { jabatanAPI, departemenAPI } from '../services/api';
 import type { Jabatan as JabatanType } from '../types/jabatan';
+import type { Departemen } from '../types/departemen';
 import {
   Card,
   CardContent,
@@ -12,6 +13,7 @@ import {
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { Textarea } from '../components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -40,13 +42,20 @@ interface AlertState {
 
 export const Jabatan = () => {
   const [jabatan, setJabatan] = useState<JabatanType[]>([]);
+  const [departemen, setDepartemen] = useState<Departemen[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editingJabatan, setEditingJabatan] = useState<JabatanType | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ nama: '' });
+  const [formData, setFormData] = useState({ 
+    nama: '', 
+    departemenId: '', 
+    level: '', 
+    deskripsi: '' 
+  });
   const [submitting, setSubmitting] = useState(false);
+  const [filterDepartemen, setFilterDepartemen] = useState<string>('');
   const [alert, setAlert] = useState<AlertState>({
     show: false,
     type: 'success',
@@ -60,11 +69,21 @@ export const Jabatan = () => {
     }, 5000);
   };
 
+  const fetchDepartemen = async () => {
+    try {
+      const response = await departemenAPI.getAll();
+      setDepartemen(response.data);
+    } catch (error) {
+      console.error('Error fetching departemen:', error);
+    }
+  };
+
   const fetchJabatan = async () => {
     try {
       setLoading(true);
-      const response = await jabatanAPI.getAll();
-      console.log('Fetched jabatan:', response.data); // Debug log
+      const params = filterDepartemen ? { departemenId: filterDepartemen } : undefined;
+      const response = await jabatanAPI.getAll(params);
+      console.log('Fetched jabatan:', response.data);
       setJabatan(response.data);
     } catch (error) {
       const errorMessage = error instanceof AxiosError 
@@ -77,18 +96,28 @@ export const Jabatan = () => {
   };
 
   useEffect(() => {
+    fetchDepartemen();
     fetchJabatan();
   }, []);
 
+  useEffect(() => {
+    fetchJabatan();
+  }, [filterDepartemen]);
+
   const handleOpenDialog = (jabatan?: JabatanType) => {
     if (jabatan) {
-      console.log('Editing jabatan:', jabatan); // Debug log
+      console.log('Editing jabatan:', jabatan);
       setEditingJabatan(jabatan);
-      setFormData({ nama: jabatan.nama });
+      setFormData({ 
+        nama: jabatan.nama,
+        departemenId: jabatan.departemenId,
+        level: jabatan.level || '',
+        deskripsi: jabatan.deskripsi || ''
+      });
     } else {
-      console.log('Creating new jabatan'); // Debug log
+      console.log('Creating new jabatan');
       setEditingJabatan(null);
-      setFormData({ nama: '' });
+      setFormData({ nama: '', departemenId: '', level: '', deskripsi: '' });
     }
     setIsDialogOpen(true);
   };
@@ -96,7 +125,7 @@ export const Jabatan = () => {
   const handleCloseDialog = () => {
     setIsDialogOpen(false);
     setEditingJabatan(null);
-    setFormData({ nama: '' });
+    setFormData({ nama: '', departemenId: '', level: '', deskripsi: '' });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -107,27 +136,41 @@ export const Jabatan = () => {
       return;
     }
 
+    if (!formData.departemenId) {
+      showAlert('error', 'Departemen wajib dipilih');
+      return;
+    }
+
     try {
       setSubmitting(true);
+      
+      // Prepare data - only send non-empty fields
+      const submitData: any = {
+        nama: formData.nama,
+        departemenId: formData.departemenId,
+      };
+      
+      if (formData.level) submitData.level = formData.level;
+      if (formData.deskripsi) submitData.deskripsi = formData.deskripsi;
+      
       if (editingJabatan) {
-        console.log('Submitting update for ID:', editingJabatan.id); // Debug log
+        console.log('Submitting update for ID:', editingJabatan.id);
         
-        // Validasi ID ada
         if (!editingJabatan.id) {
           throw new Error('ID jabatan tidak ditemukan');
         }
         
-        await jabatanAPI.update(editingJabatan.id, formData);
+        await jabatanAPI.update(editingJabatan.id, submitData);
         showAlert('success', 'Jabatan berhasil diupdate');
       } else {
-        console.log('Submitting new jabatan'); // Debug log
-        await jabatanAPI.create(formData);
+        console.log('Submitting new jabatan');
+        await jabatanAPI.create(submitData);
         showAlert('success', 'Jabatan berhasil ditambahkan');
       }
       handleCloseDialog();
       fetchJabatan();
     } catch (error) {
-      console.error('Submit error:', error); // Debug log
+      console.error('Submit error:', error);
       const errorMessage = error instanceof AxiosError
         ? error.response?.data?.message || 'Terjadi kesalahan'
         : error instanceof Error
@@ -189,7 +232,7 @@ export const Jabatan = () => {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Jabatan</h1>
               <p className="text-gray-500 mt-1">
-                Kelola data jabatan perusahaan
+                Kelola data jabatan per departemen
               </p>
             </div>
             <Button onClick={() => handleOpenDialog()}>
@@ -197,6 +240,37 @@ export const Jabatan = () => {
               Tambah Jabatan
             </Button>
           </div>
+
+          {/* Filter by Department */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <Label htmlFor="filter-dept" className="whitespace-nowrap">Filter Departemen:</Label>
+                <select
+                  id="filter-dept"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                  value={filterDepartemen}
+                  onChange={(e) => setFilterDepartemen(e.target.value)}
+                >
+                  <option value="">Semua Departemen</option>
+                  {departemen.map((dept) => (
+                    <option key={dept.id} value={dept.id}>
+                      {dept.nama}
+                    </option>
+                  ))}
+                </select>
+                {filterDepartemen && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setFilterDepartemen('')}
+                  >
+                    Reset
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>
@@ -220,30 +294,45 @@ export const Jabatan = () => {
                     <TableRow>
                       <TableHead>No</TableHead>
                       <TableHead>Nama Jabatan</TableHead>
+                      <TableHead>Level</TableHead>
+                      <TableHead>Departemen</TableHead>
+                      <TableHead>Deskripsi</TableHead>
                       <TableHead className="text-right">Aksi</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {jabatan.map((dept, index) => (
-                      <TableRow key={dept.id}>
+                    {jabatan.map((jab, index) => (
+                      <TableRow key={jab.id}>
                         <TableCell>{index + 1}</TableCell>
-                        <TableCell className="font-medium">{dept.nama}</TableCell>
+                        <TableCell className="font-medium">{jab.nama}</TableCell>
+                        <TableCell>
+                          {jab.level && (
+                            <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
+                              {jab.level}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <span className="inline-flex items-center rounded-full bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10">
+                            {jab.departemen.nama}
+                          </span>
+                        </TableCell>
+                        <TableCell className="max-w-xs truncate text-sm text-gray-500">
+                          {jab.deskripsi || '-'}
+                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => {
-                                console.log('Edit button clicked for:', dept); // Debug log
-                                handleOpenDialog(dept);
-                              }}
+                              onClick={() => handleOpenDialog(jab)}
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
                             <Button
                               variant="destructive"
                               size="sm"
-                              onClick={() => openDeleteDialog(dept.id)}
+                              onClick={() => openDeleteDialog(jab.id)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -284,8 +373,34 @@ export const Jabatan = () => {
                   />
                 </div>
               )}
+              
               <div className="space-y-2">
-                <Label htmlFor="nama">Nama Jabatan</Label>
+                <Label htmlFor="departemenId">
+                  Departemen <span className="text-red-500">*</span>
+                </Label>
+                <select
+                  id="departemenId"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  value={formData.departemenId}
+                  onChange={(e) =>
+                    setFormData({ ...formData, departemenId: e.target.value })
+                  }
+                  disabled={submitting}
+                  required
+                >
+                  <option value="">Pilih Departemen</option>
+                  {departemen.map((dept) => (
+                    <option key={dept.id} value={dept.id}>
+                      {dept.nama}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="nama">
+                  Nama Jabatan <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   id="nama"
                   placeholder="Masukkan nama jabatan"
@@ -294,6 +409,42 @@ export const Jabatan = () => {
                     setFormData({ ...formData, nama: e.target.value })
                   }
                   disabled={submitting}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="level">Level (Opsional)</Label>
+                <select
+                  id="level"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  value={formData.level}
+                  onChange={(e) =>
+                    setFormData({ ...formData, level: e.target.value })
+                  }
+                  disabled={submitting}
+                >
+                  <option value="">Pilih Level</option>
+                  <option value="Junior">Junior</option>
+                  <option value="Staff">Staff</option>
+                  <option value="Senior">Senior</option>
+                  <option value="Lead">Lead</option>
+                  <option value="Manager">Manager</option>
+                  <option value="Director">Director</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="deskripsi">Deskripsi (Opsional)</Label>
+                <Textarea
+                  id="deskripsi"
+                  placeholder="Masukkan deskripsi jabatan"
+                  value={formData.deskripsi}
+                  onChange={(e) =>
+                    setFormData({ ...formData, deskripsi: e.target.value })
+                  }
+                  disabled={submitting}
+                  rows={3}
                 />
               </div>
             </div>

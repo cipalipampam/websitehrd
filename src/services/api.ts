@@ -145,8 +145,15 @@ export const departemenAPI = {
 };
 
 export const jabatanAPI = {
-  getAll: async (): Promise<JabatanResponse> => {
-    const response = await api.get<JabatanResponse>('/api/jabatan');
+  getAll: async (params?: { departemenId?: string }): Promise<JabatanResponse> => {
+    const response = await api.get<JabatanResponse>('/api/jabatan', { params });
+    return response.data;
+  },
+
+  getByDepartemen: async (departemenId: string): Promise<JabatanResponse> => {
+    const response = await api.get<JabatanResponse>('/api/jabatan', { 
+      params: { departemenId } 
+    });
     return response.data;
   },
 
