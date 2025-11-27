@@ -417,7 +417,6 @@ export const KpiIndicators = () => {
                     <SelectValue placeholder="Pilih departemen (opsional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Semua Departemen</SelectItem>
                     {departemen.map((dept) => (
                       <SelectItem key={dept.id} value={dept.id}>
                         {dept.nama}
