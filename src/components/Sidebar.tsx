@@ -1,4 +1,4 @@
-import { Home, LogOut, Settings, User, Building2, Brain, Award } from "lucide-react";
+import { Home, LogOut, Settings, User, Building2, Brain, Award, FileCheck } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "../stores/authStore";
 import { Button } from "./ui/button";
@@ -125,6 +125,15 @@ export const Sidebar = () => {
             >
               <Award size={20} />
               Pelatihan
+            </Button>
+            
+            <Button
+              variant={isActive("/izin-approval") ? "secondary" : "ghost"}
+              className="w-full justify-start gap-3"
+              onClick={() => navigate("/izin-approval")}
+            >
+              <FileCheck size={20} />
+              Persetujuan Izin
             </Button>
             
             <Button

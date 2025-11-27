@@ -13,6 +13,7 @@ import { Predict } from './pages/Predict';
 import { Pelatihan } from './pages/Pelatihan';
 import { Profile } from './pages/Profile';
 import { Settings } from './pages/Settings';
+import IzinApproval from './pages/IzinApproval';
 
 function App() {
   // Apply saved theme on initial load
@@ -96,6 +97,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Pelatihan />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/izin-approval"
+          element={
+            <ProtectedRoute>
+              <IzinApproval />
             </ProtectedRoute>
           }
         />

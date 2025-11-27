@@ -43,6 +43,10 @@ import type {
   KehadiranCreateRequest,
   KehadiranUpdateRequest,
 } from '@/types/kehadiran';
+import type {
+  IzinRequestResponse,
+  IzinRequestSingleResponse,
+} from '@/types/izin';
 
 
 
@@ -512,6 +516,32 @@ export const kehadiranAPI = {
   // Delete kehadiran (HR only)
   delete: async (id: string): Promise<{ status: number; message: string }> => {
     const response = await api.delete<{ status: number; message: string }>(`/api/kehadiran/${id}`);
+    return response.data;
+  },
+};
+
+export const izinAPI = {
+  // Get all izin requests (HR only)
+  getAll: async (params?: { status?: string }): Promise<IzinRequestResponse> => {
+    const queryParams = new URLSearchParams();
+    if (params?.status) queryParams.append('status', params.status);
+    
+    const queryString = queryParams.toString();
+    const endpoint = `/api/kehadiran/requests${queryString ? `?${queryString}` : ''}`;
+    
+    const response = await api.get<IzinRequestResponse>(endpoint);
+    return response.data;
+  },
+
+  // Approve izin request (HR only)
+  approve: async (id: string): Promise<IzinRequestSingleResponse> => {
+    const response = await api.put<IzinRequestSingleResponse>(`/api/kehadiran/requests/${id}/approve`);
+    return response.data;
+  },
+
+  // Reject izin request (HR only)
+  reject: async (id: string): Promise<IzinRequestSingleResponse> => {
+    const response = await api.put<IzinRequestSingleResponse>(`/api/kehadiran/requests/${id}/reject`);
     return response.data;
   },
 };
