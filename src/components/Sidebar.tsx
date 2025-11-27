@@ -65,7 +65,7 @@ export const Sidebar: React.FC = () => {
           className="flex items-center gap-3"
         >
           <Layers className="h-8 w-8 text-blue-600" />
-          <span className="text-2xl font-bold text-foreground">HR Dashboard</span>
+          <span className="text-2xl font-bold text-foreground">Admin</span>
         </button>
       </div>
 
