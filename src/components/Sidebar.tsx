@@ -123,6 +123,15 @@ export const Sidebar: React.FC = () => {
               Karyawan
             </Button>
 
+            <Button
+              variant={isActive("/izin-approval") ? "secondary" : "ghost"}
+              className="w-full justify-start gap-3"
+              onClick={() => navigate("/izin-approval")}
+            >
+              <FileCheck size={20} />
+              Manajemen Kehadiran
+            </Button>
+            
             <Separator className="my-2" />
 
             {/* Performance */}
@@ -164,16 +173,7 @@ export const Sidebar: React.FC = () => {
               <Award size={20} />
               Pelatihan
             </Button>
-            
-            <Button
-              variant={isActive("/izin-approval") ? "secondary" : "ghost"}
-              className="w-full justify-start gap-3"
-              onClick={() => navigate("/izin-approval")}
-            >
-              <FileCheck size={20} />
-              Persetujuan Izin
-            </Button>
-            
+        
             <Button
               variant={isActive("/predict") ? "secondary" : "ghost"}
               className="w-full justify-start gap-3"

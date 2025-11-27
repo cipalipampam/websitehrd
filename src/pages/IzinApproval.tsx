@@ -117,8 +117,8 @@ export default function IzinApproval() {
       <div className="flex-1 overflow-auto">
         <div className="container mx-auto p-6">
           <div className="mb-6">
-            <h1 className="text-3xl font-bold mb-2">Persetujuan Izin/Sakit</h1>
-            <p className="text-gray-600">Kelola permohonan izin dan sakit dari karyawan</p>
+            <h1 className="text-3xl font-bold mb-2">Manajemen Kehadiran</h1>
+            <p className="text-gray-600">Kelola permohonan izin, sakit, dan kehadiran karyawan</p>
           </div>
 
       <div className="mb-6 flex gap-4 items-center">
