@@ -150,14 +150,11 @@ export const departemenAPI = {
 
 export const jabatanAPI = {
   getAll: async (params?: { departemenId?: string }): Promise<JabatanResponse> => {
-    const response = await api.get<JabatanResponse>('/api/jabatan', { params });
-    return response.data;
-  },
-
-  getByDepartemen: async (departemenId: string): Promise<JabatanResponse> => {
-    const response = await api.get<JabatanResponse>('/api/jabatan', { 
-      params: { departemenId } 
-    });
+    const queryParams: Record<string, string> = {};
+    if (params?.departemenId) {
+      queryParams.departemenId = params.departemenId;
+    }
+    const response = await api.get<JabatanResponse>('/api/jabatan', { params: queryParams });
     return response.data;
   },
 

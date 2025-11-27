@@ -1,11 +1,11 @@
-import { Home, LogOut, Settings, User, Building2, Brain, Award, FileCheck } from "lucide-react";
+import { Home, LogOut, Settings, User, Building2, Brain, Award, FileCheck, Layers } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "../stores/authStore";
 import { Button } from "./ui/button";
 import { Separator } from "./ui/separator";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 
-export const Sidebar = () => {
+export const Sidebar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuthStore();
@@ -15,8 +15,18 @@ export const Sidebar = () => {
     navigate("/login");
   };
 
-  const getInitials = (name: string) => {
-    return name
+  // Safely derive a display name from available user fields
+  const getDisplayName = (): string => {
+    if (!user) return "User";
+    if (user.username && user.username.trim().length > 0) return user.username;
+    if (user.email && user.email.includes("@")) return user.email.split("@")[0];
+    return "User";
+  };
+
+  const getInitials = (name?: string) => {
+    const value = (name ?? "User").trim();
+    if (!value) return "U";
+    return value
       .split(" ")
       .map((n) => n[0])
       .join("")
@@ -24,13 +34,29 @@ export const Sidebar = () => {
       .slice(0, 2);
   };
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string) => {
+    if (path === "/") return location.pathname === "/";
+    return (
+      location.pathname === path ||
+      location.pathname.startsWith(path + "/") ||
+      location.pathname.startsWith(path)
+    );
+  };
+
+  const displayName = getDisplayName();
 
   return (
     <div className="flex h-screen w-64 flex-col border-r bg-muted/30">
-      {/* Header */}
+      {/* Header with lucide-react icon as logo */}
       <div className="flex-shrink-0 p-6">
-        <h2 className="text-2xl font-bold text-foreground">Dashboard</h2>
+        <button
+          onClick={() => navigate("/dashboard")}
+          aria-label="Go to dashboard"
+          className="flex items-center gap-3"
+        >
+          <Layers className="h-8 w-8 text-blue-600" />
+          <span className="text-2xl font-bold text-foreground">Admin</span>
+        </button>
       </div>
 
       <Separator />
@@ -40,11 +66,11 @@ export const Sidebar = () => {
         <div className="flex items-center gap-3 rounded-lg bg-card p-3 shadow-sm border">
           <Avatar>
             <AvatarFallback className="bg-blue-500 text-white">
-              {user ? getInitials(user.username) : "U"}
+              {getInitials(displayName)}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 overflow-hidden">
-            <p className="truncate font-semibold text-sm">{user?.username}</p>
+            <p className="truncate font-semibold text-sm">{displayName}</p>
             <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
             <span className="inline-block mt-1 rounded-full bg-blue-100 dark:bg-blue-900 px-2 py-0.5 text-xs text-blue-700 dark:text-blue-300">
               {user?.role}
@@ -63,8 +89,13 @@ export const Sidebar = () => {
           <Home size={20} />
           Dashboard
         </Button>
+
         {user?.role === "HR" && (
           <>
+            {/* Master Data */}
+            <div className="px-3 pt-4">
+              <p className="text-xs font-semibold uppercase text-muted-foreground">Master Data</p>
+            </div>
             <Button
               variant={isActive("/departemen") ? "secondary" : "ghost"}
               className="w-full justify-start gap-3"
@@ -92,6 +123,12 @@ export const Sidebar = () => {
               Karyawan
             </Button>
 
+            <Separator className="my-2" />
+
+            {/* Performance */}
+            <div className="px-3 pt-1">
+              <p className="text-xs font-semibold uppercase text-muted-foreground">Performance</p>
+            </div>
             <Button
               variant={isActive("/kpi") ? "secondary" : "ghost"}
               className="w-full justify-start gap-3"
@@ -109,7 +146,7 @@ export const Sidebar = () => {
               <Building2 size={20} />
               KPI Indicators
             </Button>
-            
+
             <Button
               variant={isActive("/penghargaan") ? "secondary" : "ghost"}
               className="w-full justify-start gap-3"
@@ -118,6 +155,7 @@ export const Sidebar = () => {
               <Award size={20} />
               Penghargaan
             </Button>
+
             <Button
               variant={isActive("/pelatihan") ? "secondary" : "ghost"}
               className="w-full justify-start gap-3"
@@ -146,6 +184,11 @@ export const Sidebar = () => {
             </Button>
           </>
         )}
+
+        {/* Account Group */}
+        <div className="px-3 pt-4">
+          <p className="text-xs font-semibold uppercase text-muted-foreground">Account</p>
+        </div>
         <Button
           variant={isActive("/profile") ? "secondary" : "ghost"}
           className="w-full justify-start gap-3"
@@ -180,3 +223,5 @@ export const Sidebar = () => {
     </div>
   );
 };
+
+export default Sidebar;
