@@ -1,8 +1,60 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { useAuthStore } from '../stores/authStore';
-import { departemenAPI, kehadiranAPI } from '../services/api';
-import { karyawanAPI } from '../services/api';
+import { departemenAPI, kehadiranAPI, karyawanAPI, kpiAPI } from '../services/api';
+
+// KPI Bulanan API - temporary until backend implements this endpoint
+const kpiBulananAPI = {
+  getAll: async () => {
+    // For now, transform regular KPI data to simulate KPI bulanan
+    // This should be replaced with actual /api/kpi-bulanan endpoint when available
+    try {
+      const kpiResponse = await kpiAPI.getAll();
+      const kpiData = kpiResponse.data || [];
+      
+      // Transform to expected kpiBulanan format
+      const bulananData: any[] = [];
+      const currentDate = new Date();
+      
+      // Group by department
+      const deptGroups: Record<string, any[]> = {};
+      kpiData.forEach((kpi: any) => {
+        const dept = kpi.karyawan?.departemen?.[0]?.nama;
+        if (dept) {
+          if (!deptGroups[dept]) deptGroups[dept] = [];
+          deptGroups[dept].push(kpi);
+        }
+      });
+      
+      // Generate last 12 months data
+      for (let i = 11; i >= 0; i--) {
+        const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+        const bulan = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        
+        Object.entries(deptGroups).forEach(([dept, kpis]) => {
+          const avgScore = kpis.reduce((sum, kpi) => sum + kpi.score, 0) / kpis.length;
+          // Add monthly variation
+          const variation = (Math.sin(i * 0.5) * 5); // Consistent variation
+          const finalScore = Math.max(0, Math.min(100, avgScore + variation));
+          
+          bulananData.push({
+            departemenId: `dept-${dept}`,
+            departemen: dept,
+            bulan,
+            scorePresensi: Math.round(finalScore * 0.4), // 40% weight
+            scorePelatihan: Math.round(finalScore * 0.6), // 60% weight  
+            kpiFinal: Math.round(finalScore)
+          });
+        });
+      }
+      
+      return { status: 200, message: 'Success', data: bulananData };
+    } catch (error) {
+      console.error('Error in kpiBulananAPI:', error);
+      return { status: 500, message: 'Error', data: [] };
+    }
+  }
+};
 import type { Kehadiran } from '../types/kehadiran';
 
 import {
@@ -46,88 +98,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
-// Sample KPI data - Updated dengan 8 departemen
-const kpiData = [
-  { month: 'Jan', Analytics: 85, Finance: 92, HR: 78, Operations: 88, Procurement: 82, 'R&D': 90, 'Sales & Marketing': 84, Technology: 95 },
-  { month: 'Feb', Analytics: 88, Finance: 89, HR: 82, Operations: 85, Procurement: 86, 'R&D': 92, 'Sales & Marketing': 87, Technology: 93 },
-  { month: 'Mar', Analytics: 92, Finance: 94, HR: 85, Operations: 90, Procurement: 89, 'R&D': 94, 'Sales & Marketing': 91, Technology: 97 },
-  { month: 'Apr', Analytics: 89, Finance: 91, HR: 88, Operations: 87, Procurement: 91, 'R&D': 89, 'Sales & Marketing': 93, Technology: 94 },
-  { month: 'May', Analytics: 94, Finance: 96, HR: 90, Operations: 93, Procurement: 87, 'R&D': 95, 'Sales & Marketing': 89, Technology: 98 },
-  { month: 'Jun', Analytics: 91, Finance: 93, HR: 87, Operations: 89, Procurement: 94, 'R&D': 93, 'Sales & Marketing': 92, Technology: 96 },
-  { month: 'Jul', Analytics: 96, Finance: 97, HR: 92, Operations: 95, Procurement: 90, 'R&D': 97, 'Sales & Marketing': 94, Technology: 99 },
-  { month: 'Aug', Analytics: 93, Finance: 95, HR: 89, Operations: 91, Procurement: 93, 'R&D': 95, 'Sales & Marketing': 91, Technology: 97 },
-  { month: 'Sep', Analytics: 97, Finance: 98, HR: 94, Operations: 96, Procurement: 95, 'R&D': 98, 'Sales & Marketing': 96, Technology: 100 },
-  { month: 'Oct', Analytics: 95, Finance: 96, HR: 91, Operations: 93, Procurement: 97, 'R&D': 96, 'Sales & Marketing': 94, Technology: 98 },
-  { month: 'Nov', Analytics: 98, Finance: 99, HR: 95, Operations: 97, Procurement: 94, 'R&D': 99, 'Sales & Marketing': 97, Technology: 99 },
-  { month: 'Dec', Analytics: 96, Finance: 97, HR: 93, Operations: 95, Procurement: 96, 'R&D': 97, 'Sales & Marketing': 95, Technology: 98 },
-];
-
-// Sample Employee Performance Data - Updated dengan 8 departemen
-const employeeData = {
-  Analytics: [
-    { id: 1, name: 'Alice Johnson', position: 'Data Analyst', performance: 95, productivity: 88, attendance: 98, rating: 'Excellent' },
-    { id: 2, name: 'Bob Smith', position: 'Business Intelligence Specialist', performance: 87, productivity: 85, attendance: 92, rating: 'Good' },
-    { id: 3, name: 'Carol Davis', position: 'Data Scientist', performance: 91, productivity: 89, attendance: 96, rating: 'Excellent' },
-    { id: 4, name: 'David Wilson', position: 'Analytics Manager', performance: 93, productivity: 91, attendance: 97, rating: 'Excellent' },
-    { id: 33, name: 'Emma Thompson', position: 'Statistician', performance: 89, productivity: 86, attendance: 94, rating: 'Good' },
-  ],
-  Finance: [
-    { id: 5, name: 'Frank Brown', position: 'Finance Manager', performance: 98, productivity: 95, attendance: 99, rating: 'Excellent' },
-    { id: 6, name: 'Grace Miller', position: 'Accountant', performance: 89, productivity: 87, attendance: 94, rating: 'Good' },
-    { id: 7, name: 'Henry Taylor', position: 'Financial Analyst', performance: 93, productivity: 91, attendance: 97, rating: 'Excellent' },
-    { id: 8, name: 'Isabella Clark', position: 'Budget Specialist', performance: 85, productivity: 83, attendance: 90, rating: 'Good' },
-    { id: 34, name: 'Jack Wilson', position: 'Investment Analyst', performance: 92, productivity: 89, attendance: 95, rating: 'Excellent' },
-  ],
-  HR: [
-    { id: 9, name: 'Karen Rodriguez', position: 'HR Manager', performance: 94, productivity: 92, attendance: 96, rating: 'Excellent' },
-    { id: 10, name: 'Leo Martinez', position: 'Recruitment Specialist', performance: 88, productivity: 90, attendance: 89, rating: 'Good' },
-    { id: 11, name: 'Maya Lee', position: 'Training Coordinator', performance: 86, productivity: 84, attendance: 91, rating: 'Good' },
-    { id: 12, name: 'Noah Anderson', position: 'HR Assistant', performance: 82, productivity: 78, attendance: 88, rating: 'Average' },
-    { id: 35, name: 'Olivia Garcia', position: 'Employee Relations Specialist', performance: 90, productivity: 87, attendance: 93, rating: 'Good' },
-  ],
-  Operations: [
-    { id: 13, name: 'Paul Thompson', position: 'Operations Manager', performance: 96, productivity: 94, attendance: 98, rating: 'Excellent' },
-    { id: 14, name: 'Quinn White', position: 'Process Coordinator', performance: 89, productivity: 86, attendance: 92, rating: 'Good' },
-    { id: 15, name: 'Ryan Garcia', position: 'Quality Analyst', performance: 87, productivity: 85, attendance: 90, rating: 'Good' },
-    { id: 16, name: 'Sophia Lopez', position: 'Operations Assistant', performance: 83, productivity: 80, attendance: 87, rating: 'Average' },
-    { id: 36, name: 'Tyler Johnson', position: 'Supply Chain Coordinator', performance: 91, productivity: 88, attendance: 94, rating: 'Good' },
-  ],
-  Procurement: [
-    { id: 17, name: 'Uma Harris', position: 'Procurement Manager', performance: 92, productivity: 88, attendance: 95, rating: 'Excellent' },
-    { id: 18, name: 'Victor Green', position: 'Sourcing Specialist', performance: 86, productivity: 84, attendance: 91, rating: 'Good' },
-    { id: 19, name: 'Wendy Young', position: 'Vendor Relations Manager', performance: 89, productivity: 87, attendance: 93, rating: 'Good' },
-    { id: 20, name: 'Xavier King', position: 'Procurement Assistant', performance: 80, productivity: 78, attendance: 85, rating: 'Average' },
-    { id: 37, name: 'Yara Scott', position: 'Contract Specialist', performance: 88, productivity: 85, attendance: 92, rating: 'Good' },
-  ],
-  'R&D': [
-    { id: 21, name: 'Zoe Patel', position: 'Research Manager', performance: 97, productivity: 95, attendance: 99, rating: 'Excellent' },
-    { id: 22, name: 'Adam Chen', position: 'Product Developer', performance: 91, productivity: 89, attendance: 94, rating: 'Good' },
-    { id: 23, name: 'Blake Kumar', position: 'Research Scientist', performance: 93, productivity: 91, attendance: 96, rating: 'Excellent' },
-    { id: 24, name: 'Chloe Lopez', position: 'Innovation Specialist', performance: 88, productivity: 86, attendance: 92, rating: 'Good' },
-    { id: 38, name: 'Derek Miller', position: 'Lab Technician', performance: 85, productivity: 83, attendance: 89, rating: 'Good' },
-  ],
-  'Sales & Marketing': [
-    { id: 25, name: 'Eva Tanaka', position: 'Sales Manager', performance: 94, productivity: 92, attendance: 97, rating: 'Excellent' },
-    { id: 26, name: 'Felix Williams', position: 'Marketing Specialist', performance: 87, productivity: 85, attendance: 90, rating: 'Good' },
-    { id: 27, name: 'Gina Johnson', position: 'Digital Marketing Manager', performance: 90, productivity: 88, attendance: 93, rating: 'Good' },
-    { id: 28, name: 'Hugo Rodriguez', position: 'Sales Representative', performance: 84, productivity: 82, attendance: 88, rating: 'Average' },
-    { id: 39, name: 'Iris Davis', position: 'Brand Manager', performance: 92, productivity: 89, attendance: 95, rating: 'Excellent' },
-  ],
-  Technology: [
-    { id: 29, name: 'Jake Brown', position: 'Tech Lead', performance: 98, productivity: 96, attendance: 99, rating: 'Excellent' },
-    { id: 30, name: 'Kate Smith', position: 'Software Engineer', performance: 92, productivity: 90, attendance: 95, rating: 'Excellent' },
-    { id: 31, name: 'Liam Davis', position: 'DevOps Engineer', performance: 94, productivity: 92, attendance: 97, rating: 'Excellent' },
-    { id: 32, name: 'Mia Wilson', position: 'System Administrator', performance: 88, productivity: 86, attendance: 91, rating: 'Good' },
-    { id: 40, name: 'Nathan Clark', position: 'Full Stack Developer', performance: 95, productivity: 93, attendance: 98, rating: 'Excellent' },
-  ],
-};
-
-// Updated departments array
-//const departments = ['Analytics', 'Finance', 'HR', 'Operations', 'Procurement', 'R&D', 'Sales & Marketing', 'Technology'];
-
-
-
-const departmentColors = {
+const departmentColors: Record<string, string> = {
   Analytics: '#8884d8',
   Finance: '#82ca9d',
   HR: '#ffc658',
@@ -138,7 +109,7 @@ const departmentColors = {
   Technology: '#ff8042',
 };
 
-const ratingColors = {
+const ratingColors: Record<string, string> = {
   'Excellent': 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300 border-green-200 dark:border-green-800',
   'Good': 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800',
   'Average': 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800',
@@ -150,16 +121,8 @@ const TrendIcon = ({ trend }: { trend: 'up' | 'down' | 'stable' }) => {
   if (trend === 'up') {
     return (
       <div className="flex items-center gap-1">
-        <svg 
-          className="w-4 h-4 text-green-500" 
-          fill="currentColor" 
-          viewBox="0 0 20 20"
-        >
-          <path 
-            fillRule="evenodd" 
-            d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" 
-            clipRule="evenodd" 
-          />
+        <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
         </svg>
         <span className="text-xs font-medium text-green-600 dark:text-green-400">UP</span>
       </div>
@@ -169,16 +132,8 @@ const TrendIcon = ({ trend }: { trend: 'up' | 'down' | 'stable' }) => {
   if (trend === 'down') {
     return (
       <div className="flex items-center gap-1">
-        <svg 
-          className="w-4 h-4 text-red-500" 
-          fill="currentColor" 
-          viewBox="0 0 20 20"
-        >
-          <path 
-            fillRule="evenodd" 
-            d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l4.293-4.293a1 1 0 011.414 0z" 
-            clipRule="evenodd" 
-          />
+        <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l4.293-4.293a1 1 0 011.414 0z" clipRule="evenodd" />
         </svg>
         <span className="text-xs font-medium text-red-600 dark:text-red-400">DOWN</span>
       </div>
@@ -187,16 +142,8 @@ const TrendIcon = ({ trend }: { trend: 'up' | 'down' | 'stable' }) => {
   
   return (
     <div className="flex items-center gap-1">
-      <svg 
-        className="w-4 h-4 text-gray-500 dark:text-gray-400" 
-        fill="currentColor" 
-        viewBox="0 0 20 20"
-      >
-        <path 
-          fillRule="evenodd" 
-          d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" 
-          clipRule="evenodd" 
-        />
+      <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+        <path fillRule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
       </svg>
       <span className="text-xs font-medium text-gray-600 dark:text-gray-400">STABLE</span>
     </div>
@@ -205,59 +152,73 @@ const TrendIcon = ({ trend }: { trend: 'up' | 'down' | 'stable' }) => {
 
 export const Dashboard = () => {
   const { user, fetchUser } = useAuthStore();
-  // Updated to use multi-selection for chart departments
+
+  // Selection & UI state
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>(['Analytics', 'Finance', 'Technology']);
   const [selectedEmployeeDepartment, setSelectedEmployeeDepartment] = useState('Analytics');
   const [selectedAttendanceDepartment, setSelectedAttendanceDepartment] = useState('Analytics');
   const [selectedAttendanceMonth, setSelectedAttendanceMonth] = useState(new Date().getMonth());
   const [selectedAttendanceYear, setSelectedAttendanceYear] = useState(new Date().getFullYear());
+
+  // Data states
+  const [departments, setDepartments] = useState<string[]>([]);
   const [karyawan, setKaryawan] = useState<any[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<Kehadiran[]>([]);
+  const [kpiBulanan, setKpiBulanan] = useState<any[]>([]);
+
+  // Loading/error states
   const [loadingAttendance, setLoadingAttendance] = useState(false);
   const [errorAttendance, setErrorAttendance] = useState<string | null>(null);
-  const [chartStartMonth, setChartStartMonth] = useState(new Date().getMonth() - 11);
-  const [chartStartYear, setChartStartYear] = useState(new Date().getFullYear());
-  const [chartEndMonth, setChartEndMonth] = useState(new Date().getMonth());
-  const [chartEndYear, setChartEndYear] = useState(new Date().getFullYear());
+  const [loadingKpi, setLoadingKpi] = useState(false);
 
-
-const [departments, setDepartments] = useState<string[]>([]);
-
-useEffect(() => {
-  fetchUser().catch(console.error);
-
-  // load departemen dari API
-  const loadDepartments = async () => {
-    try {
-      const res = await departemenAPI.getAll();
-      const names = res.data.map((d) => d.nama);
-
-      setDepartments(names);
-
-      // Set default selected
-      setSelectedDepartments(names.slice(0, 3));  
-      setSelectedEmployeeDepartment(names[0]);
-      setSelectedAttendanceDepartment(names[0]);
-    } catch (err) {
-      console.error("Failed to load departments", err);
-    }
-  };
-
-  loadDepartments();
-}, [fetchUser]);
-
+  // initial load: user, departments, karyawan, kpi
   useEffect(() => {
-  const loadKaryawan = async () => {
-    try {
-      const res = await karyawanAPI.getAll();
-      setKaryawan(res.data);  // <- simpan data karyawan real
-    } catch (err) {
-      console.error("Failed to load karyawan", err);
-    }
-  };
+    fetchUser().catch(console.error);
 
-  loadKaryawan();
-}, []);
+    // load departemen
+    const loadDepartments = async () => {
+      try {
+        const res = await departemenAPI.getAll();
+        const names = (res.data || []).map((d: any) => d.nama);
+        setDepartments(names);
+        if (names.length > 0) {
+          setSelectedDepartments(names.slice(0, 3));
+          setSelectedEmployeeDepartment(names[0]);
+          setSelectedAttendanceDepartment(names[0]);
+        }
+      } catch (err) {
+        console.error("Failed to load departments", err);
+      }
+    };
+
+    // load karyawan
+    const loadKaryawan = async () => {
+      try {
+        const res = await karyawanAPI.getAll();
+        setKaryawan(res.data || []);
+      } catch (err) {
+        console.error("Failed to load karyawan", err);
+      }
+    };
+
+    // load KPI bulanan
+    const loadKpi = async () => {
+      try {
+        setLoadingKpi(true);
+        const res = await kpiBulananAPI.getAll();
+        // API returns: {status, message, data: [{departemenId, departemen, bulan, scorePresensi, scorePelatihan, kpiFinal}]}
+        setKpiBulanan(res.data || []);
+      } catch (err) {
+        console.error("Failed to load KPI bulanan", err);
+      } finally {
+        setLoadingKpi(false);
+      }
+    };
+
+    loadDepartments();
+    loadKaryawan();
+    loadKpi();
+  }, [fetchUser]);
 
   // Fetch attendance data when filters change
   useEffect(() => {
@@ -268,13 +229,13 @@ useEffect(() => {
       setErrorAttendance(null);
       
       try {
-        // HR can view all attendance, filter by month/year
         const params = {
-          month: selectedAttendanceMonth + 1, // Backend expects 1-based month
+          month: selectedAttendanceMonth + 1, // backend expects 1-based month
           year: selectedAttendanceYear,
         };
         
         const response = await kehadiranAPI.getAll(params);
+        // response likely { status, message, data }
         setAttendanceRecords(response.data || []);
       } catch (err: any) {
         console.error('Failed to load attendance data:', err);
@@ -288,13 +249,7 @@ useEffect(() => {
     loadAttendanceData();
   }, [selectedAttendanceMonth, selectedAttendanceYear, user]);
 
-  useEffect(() => {
-    fetchUser().catch((error: Error) => {
-      console.error('Failed to fetch user:', error.message);
-    });
-  }, [fetchUser]);
-
-  // Helper Functions
+  // Helper utils
   const getMonthName = (monthIndex: number) => {
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
                       'July', 'August', 'September', 'October', 'November', 'December'];
@@ -331,7 +286,6 @@ useEffect(() => {
   const handleDepartmentToggle = (department: string) => {
     setSelectedDepartments(prev => {
       if (prev.includes(department)) {
-        // Don't allow removing if it's the last selected department
         if (prev.length === 1) return prev;
         return prev.filter(d => d !== department);
       } else {
@@ -345,22 +299,173 @@ useEffect(() => {
   };
 
   const handleClearAllDepartments = () => {
-    setSelectedDepartments(['Analytics']); // Keep at least one selected
+    setSelectedDepartments(departments.length ? [departments[0]] : []);
   };
 
-  // Generate attendance data from API records
+  // ---------- KPI data transformation ----------
+  // Transform KPI data for chart visualization
+  // KPI data structure: { id, year, score, karyawan: { departemen: [{ nama }] } }
+
+  const getLast12MonthsData = useMemo(() => {
+    // Group kpiBulanan data by month
+    const grouped: Record<string, any> = {};
+
+    kpiBulanan.forEach((item: any) => {
+      const month = item.bulan; // '2025-11'
+      if (!grouped[month]) grouped[month] = { month, bulan: month };
+      grouped[month][item.departemen] = Math.round(item.kpiFinal ?? 0);
+    });
+
+    // Sort months ascending and transform to display format
+    const sorted = Object.values(grouped)
+      .sort((a: any, b: any) => (a.month > b.month ? 1 : -1))
+      .map((item: any) => {
+        const [year, month] = item.bulan.split('-');
+        const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const monthName = monthNames[parseInt(month) - 1];
+        
+        return {
+          ...item,
+          month: `${monthName} ${year}`
+        };
+      });
+      
+    return sorted;
+  }, [kpiBulanan]);
+
+  // Chart date range controls
+  const [chartStartMonth, setChartStartMonth] = useState<number>(new Date().getMonth() - 11);
+  const [chartStartYear, setChartStartYear] = useState<number>(new Date().getFullYear());
+  const [chartEndMonth, setChartEndMonth] = useState<number>(new Date().getMonth());
+  const [chartEndYear, setChartEndYear] = useState<number>(new Date().getFullYear());
+
+  const getFilteredData = () => {
+    // if no kpi data, return empty
+    if (!getLast12MonthsData || getLast12MonthsData.length === 0) return [];
+
+    // convert chartStartMonth/startYear & end to Date objects
+    const startDate = new Date(chartStartYear, chartStartMonth < 0 ? 0 : chartStartMonth);
+    const endDate = new Date(chartEndYear, chartEndMonth);
+
+    const filtered = getLast12MonthsData.filter((item: any) => {
+      // Parse month string like "Nov 2025"
+      const monthStr = item.month;
+      const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const parts = monthStr.split(' ');
+      if (parts.length !== 2) return true; // fallback to include if parsing fails
+      
+      const monthIndex = monthNames.indexOf(parts[0]);
+      const year = parseInt(parts[1]);
+      
+      if (monthIndex === -1 || !year) return true; // fallback
+      
+      const itemDate = new Date(year, monthIndex);
+      return itemDate >= startDate && itemDate <= endDate;
+    });
+
+    // Return the filtered data as is since it's already in the right format
+    return filtered;
+  };
+
+  const getDepartmentsToRender = () => selectedDepartments;
+
+  // Department KPI helpers for cards
+  const getDeptKpi = (dept: string) => {
+    const deptData = (kpiBulanan || []).filter((x: any) => x.departemen === dept);
+    if (deptData.length === 0) return { latest: 0, prev: 0 };
+
+    const sorted = [...deptData].sort((a: any, b: any) => (a.bulan > b.bulan ? 1 : -1));
+    const latest = Math.round(sorted[sorted.length - 1]?.kpiFinal || 0);
+    const prev = Math.round(sorted[sorted.length - 2]?.kpiFinal || latest);
+    return { latest, prev };
+  };
+
+  // Cards and KPI stats
+  const calculateAverageKPI = () => {
+    if (!kpiBulanan || kpiBulanan.length === 0) return 0;
+    const avg = kpiBulanan.reduce((a: number, b: any) => a + (b.kpiFinal ?? 0), 0) / kpiBulanan.length;
+    return Math.round(avg);
+  };
+
+  const getCurrentMonthKPI = () => {
+    if (!kpiBulanan || kpiBulanan.length === 0) return 0;
+    const months = [...kpiBulanan].map((x: any) => x.bulan);
+    const latestMonth = months.sort().pop();
+    if (!latestMonth) return 0;
+    const monthData = kpiBulanan.filter((x: any) => x.bulan === latestMonth);
+    const avg = monthData.reduce((a: number, b: any) => a + (b.kpiFinal ?? 0), 0) / (monthData.length || 1);
+    return Math.round(avg);
+  };
+
+  const getTotalEmployees = () => karyawan.length;
+
+
+
+  // Helper function to get employees with KPI bulanan scores
+  const getEmployeesWithKPIBulanan = (departmentName: string) => {
+    const departmentEmployees = (karyawan || []).filter(e => 
+      e.departemen?.some((d: any) => d.nama === departmentName)
+    );
+
+    // Get latest month's KPI data for the department
+    const departmentKPIData = (kpiBulanan || []).filter(item => item.departemen === departmentName);
+    
+    if (departmentKPIData.length === 0) {
+      // Return employees with default scores if no KPI data
+      return departmentEmployees.map(employee => ({
+        ...employee,
+        scoreKehadiran: 0,
+        scorePelatihan: 0,
+        kpiFinal: 0,
+        performance: 0,
+        productivity: 0,
+        attendance: 0,
+        rating: 'Poor'
+      }));
+    }
+
+    // Get the latest month's data
+    const sortedKPIData = [...departmentKPIData].sort((a, b) => (a.bulan > b.bulan ? 1 : -1));
+    const latestKPIData = sortedKPIData[sortedKPIData.length - 1];
+
+    return departmentEmployees.map((employee: any) => {
+      // For demonstration, distribute the department scores among employees with some variation
+      // In real scenario, this should be per-employee data from backend
+      const baseScoreKehadiran = latestKPIData?.scorePresensi || 0;
+      const baseScorePelatihan = latestKPIData?.scorePelatihan || 0;
+      const baseKPIFinal = latestKPIData?.kpiFinal || 0;
+      
+      // Add employee-specific variation (±10%)
+      const employeeVariation = (employee.id.slice(-2).charCodeAt(0) % 21 - 10) / 100; // -0.1 to 0.1
+      
+      const scoreKehadiran = Math.max(0, Math.min(100, Math.round(baseScoreKehadiran * (1 + employeeVariation))));
+      const scorePelatihan = Math.max(0, Math.min(100, Math.round(baseScorePelatihan * (1 + employeeVariation))));
+      const kpiFinal = Math.max(0, Math.min(100, Math.round(baseKPIFinal * (1 + employeeVariation))));
+      
+      return {
+        ...employee,
+        scoreKehadiran,
+        scorePelatihan,
+        kpiFinal,
+        performance: kpiFinal,
+        productivity: scorePelatihan,
+        attendance: scoreKehadiran,
+        rating: kpiFinal >= 90 ? 'Excellent' : kpiFinal >= 75 ? 'Good' : kpiFinal >= 60 ? 'Average' : 'Poor'
+      };
+    }).sort((a: any, b: any) => (b.kpiFinal || 0) - (a.kpiFinal || 0));
+  };
+
+  // ---------- Attendance helpers (kehadiran) ----------
   const getAttendanceData = () => {
     const year = selectedAttendanceYear;
     const month = selectedAttendanceMonth;
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     
-    // Filter attendance records by selected department
     const filteredRecords = attendanceRecords.filter(record => {
       const karyawanDept = record.karyawan?.departemen?.[0]?.nama;
       return karyawanDept === selectedAttendanceDepartment;
     });
 
-    // Group by karyawan
     const karyawanMap = new Map<string, {
       id: string;
       name: string;
@@ -385,7 +490,6 @@ useEffect(() => {
       karyawanMap.get(karyawanId)!.records.set(day, record);
     });
 
-    // Build attendance data for each employee
     const attendanceData = Array.from(karyawanMap.values()).map(employeeData => {
       const dailyAttendance: { [key: string]: string } = {};
       let presentDays = 0;
@@ -404,7 +508,7 @@ useEffect(() => {
           const record = employeeData.records.get(day);
           
           if (!record) {
-            dailyAttendance[`day${day}`] = 'X'; // No record = Absent
+            dailyAttendance[`day${day}`] = 'X';
             absentDays++;
           } else {
             const status = record.status;
@@ -415,8 +519,8 @@ useEffect(() => {
               dailyAttendance[`day${day}`] = 'L';
               lateDays++;
             } else if (status === 'IZIN' || status === 'SAKIT') {
-              dailyAttendance[`day${day}`] = 'I'; // Izin/Sakit
-              presentDays++; // Count as attended for rate calculation
+              dailyAttendance[`day${day}`] = 'I';
+              presentDays++;
             } else if (status === 'ALPA' || status === 'BELUM_ABSEN') {
               dailyAttendance[`day${day}`] = 'X';
               absentDays++;
@@ -447,7 +551,6 @@ useEffect(() => {
     return attendanceData;
   };
 
-  // Get days array for selected month and year
   const getSelectedMonthDays = () => {
     const year = selectedAttendanceYear;
     const month = selectedAttendanceMonth;
@@ -469,107 +572,6 @@ useEffect(() => {
     return days;
   };
 
-  // Get last 12 months from current month
-  const getLast12MonthsData = () => {
-    const currentDate = new Date();
-    const currentMonth = currentDate.getMonth(); // 0-based (0 = January, 11 = December)
-    const currentYear = currentDate.getFullYear();
-    
-    const last12Months = [];
-    
-    for (let i = 11; i >= 0; i--) {
-      const monthIndex = (currentMonth - i + 12) % 12;
-      const year = currentMonth - i < 0 ? currentYear - 1 : currentYear;
-      
-      // Get month data from our sample data
-      const monthData = kpiData[monthIndex];
-      
-      // Format the month display (e.g., "Jan 2024", "Dec 2023")
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const displayMonth = year === currentYear ? monthNames[monthIndex] : `${monthNames[monthIndex]} ${year}`;
-      
-      last12Months.push({
-        ...monthData,
-        month: displayMonth,
-        monthIndex: monthIndex,
-        year: year
-      });
-    }
-    
-    return last12Months;
-  };
-
-  // Updated filter function to show multiple selected departments with date range
-  const getFilteredData = () => {
-    const last12MonthsData = getLast12MonthsData();
-    
-    // Filter by date range
-    const filteredByDate = last12MonthsData.filter(item => {
-      const itemDate = new Date(item.year, item.monthIndex);
-      const startDate = new Date(chartStartYear, chartStartMonth);
-      const endDate = new Date(chartEndYear, chartEndMonth);
-      
-      return itemDate >= startDate && itemDate <= endDate;
-    });
-    
-    return filteredByDate.map(item => {
-      const filteredItem: any = {
-        month: item.month,
-        monthIndex: item.monthIndex,
-        year: item.year,
-      };
-      
-      // Add only selected departments to the data
-      selectedDepartments.forEach(dept => {
-        filteredItem[dept] = item[dept as keyof typeof item];
-      });
-      
-      return filteredItem;
-    });
-  };
-
-  // Updated to return selected departments
-  const getDepartmentsToRender = () => {
-    return selectedDepartments;
-  };
-
-  // Get top 5 employees based on performance
-  const getTopEmployees = () => {
-    const employees = employeeData[selectedEmployeeDepartment as keyof typeof employeeData] || [];
-    return employees
-      .sort((a, b) => b.performance - a.performance)
-      .slice(0, 5);
-  };
-
-  // Calculate statistics based on last 12 months
-  const calculateAverageKPI = () => {
-    const last12MonthsData = getLast12MonthsData();
-    const total = last12MonthsData.reduce((acc, month) => {
-      const monthTotal = departments.reduce((sum, dept) => {
-        return sum + (month[dept as keyof typeof month] as number);
-      }, 0);
-      return acc + monthTotal / 8; // Updated untuk 8 departemen
-    }, 0);
-    return Math.round(total / last12MonthsData.length);
-  };
-
-  const getCurrentMonthKPI = () => {
-    const last12MonthsData = getLast12MonthsData();
-    const currentMonth = last12MonthsData[last12MonthsData.length - 1]; // Last item is current month
-    if (!currentMonth) return 0;
-    
-    const total = departments.reduce((sum, dept) => {
-      return sum + (currentMonth[dept as keyof typeof currentMonth] as number);
-    }, 0);
-    return Math.round(total / 8); // Updated untuk 8 departemen
-  };
-
-  const getTotalEmployees = () => {
-  return karyawan.length;
-};
-
-  // Get monthly attendance summary
   const getAttendanceSummary = () => {
     const attendanceData = getAttendanceData();
     
@@ -609,9 +611,7 @@ useEffect(() => {
         <div className="mx-auto max-w-7xl space-y-6">
           {/* Header */}
           <div>
-            <h1 className="text-3xl font-bold text-foreground">
-              Dashboard
-            </h1>
+            <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
           </div>
 
           {/* Stats Cards */}
@@ -645,7 +645,7 @@ useEffect(() => {
               </CardHeader>
               <CardContent>
                 <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">{getTotalEmployees()}</p>
-                <p className="text-sm text-muted-foreground">Across 8 departments</p>
+                <p className="text-sm text-muted-foreground">Across {departments.length} departments</p>
               </CardContent>
             </Card>
           </div>
@@ -653,53 +653,45 @@ useEffect(() => {
           {/* Department Performance Summary */}
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             {departments.map((dept) => {
-  const latestKPI = 80; // sementara kamu bisa ambil dari KPI API juga kalau mau
-  const previousKPI = 75;
+              const { latest, prev } = getDeptKpi(dept);
+              const trend = latest > prev ? 'up' : latest < prev ? 'down' : 'stable';
+              const stats = { count: (karyawan || []).filter(k => k.departemen?.some((d: any) => d.nama === dept)).length || 0, avgPerformance: 0 };
 
-  const trend = latestKPI > previousKPI ? 'up' : latestKPI < previousKPI ? 'down' : 'stable';
-
-  const stats = { count: 0, avgPerformance: 0 }; // nanti bisa diganti API karyawan
-
-  return (
-    <Card key={dept} className="hover:shadow-lg transition-shadow duration-200">
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <span className="text-sm font-semibold">{dept}</span>
-          <TrendIcon trend={trend} />
-        </CardTitle>
-        <CardDescription>Department Overview</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div>
-          <p className="text-2xl font-bold text-blue-500">{latestKPI}%</p>
-          <p className="text-sm text-muted-foreground">
-            {latestKPI - previousKPI}% from last month
-          </p>
-        </div>
-        <div className="pt-2 border-t space-y-1">
-          <p className="text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">{stats.count}</span> employees
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Avg Performance: <span className="font-medium text-foreground">{stats.avgPerformance}%</span>
-          </p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-})}
-
+              return (
+                <Card key={dept} className="hover:shadow-lg transition-shadow duration-200">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span className="text-sm font-semibold">{dept}</span>
+                      <TrendIcon trend={trend} />
+                    </CardTitle>
+                    <CardDescription>Department Overview</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div>
+                      <p className="text-2xl font-bold text-blue-500">{latest}%</p>
+                      <p className="text-sm text-muted-foreground">{latest - prev}% from last month</p>
+                    </div>
+                    <div className="pt-2 border-t space-y-1">
+                      <p className="text-sm text-muted-foreground">
+                        <span className="font-medium text-foreground">{stats.count}</span> employees
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Avg Performance: <span className="font-medium text-foreground">{stats.avgPerformance}%</span>
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
 
-          {/* Department KPI Chart - Moved above Employee Attendance */}
+          {/* Department KPI Chart */}
           <Card>
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                   <CardTitle>Department KPI Performance</CardTitle>
-                  <CardDescription>
-                    Monthly KPI trends for selected departments ({selectedDepartments.length} selected)
-                  </CardDescription>
+                  <CardDescription>Monthly KPI trends for selected departments ({selectedDepartments.length} selected)</CardDescription>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <div className="flex gap-2">
@@ -709,9 +701,7 @@ useEffect(() => {
                       </SelectTrigger>
                       <SelectContent>
                         {getMonthOptions().map((month) => (
-                          <SelectItem key={month.value} value={month.value.toString()}>
-                            {month.label}
-                          </SelectItem>
+                          <SelectItem key={month.value} value={month.value.toString()}>{month.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -721,9 +711,7 @@ useEffect(() => {
                       </SelectTrigger>
                       <SelectContent>
                         {getYearOptions().map((year) => (
-                          <SelectItem key={year} value={year.toString()}>
-                            {year}
-                          </SelectItem>
+                          <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -734,9 +722,7 @@ useEffect(() => {
                       </SelectTrigger>
                       <SelectContent>
                         {getMonthOptions().map((month) => (
-                          <SelectItem key={month.value} value={month.value.toString()}>
-                            {month.label}
-                          </SelectItem>
+                          <SelectItem key={month.value} value={month.value.toString()}>{month.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -746,9 +732,7 @@ useEffect(() => {
                       </SelectTrigger>
                       <SelectContent>
                         {getYearOptions().map((year) => (
-                          <SelectItem key={year} value={year.toString()}>
-                            {year}
-                          </SelectItem>
+                          <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -765,29 +749,15 @@ useEffect(() => {
                     <DropdownMenuContent className="w-64 p-4">
                       <div className="space-y-4">
                         <div className="flex justify-between">
-                          <Button variant="outline" size="sm" onClick={handleSelectAllDepartments}>
-                            Select All
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={handleClearAllDepartments}>
-                            Clear All
-                          </Button>
+                          <Button variant="outline" size="sm" onClick={handleSelectAllDepartments}>Select All</Button>
+                          <Button variant="outline" size="sm" onClick={handleClearAllDepartments}>Clear All</Button>
                         </div>
                         <div className="space-y-2 max-h-64 overflow-y-auto">
                           {departments.map((dept) => (
                             <div key={dept} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={dept}
-                                checked={selectedDepartments.includes(dept)}
-                                onCheckedChange={() => handleDepartmentToggle(dept)}
-                              />
-                              <label
-                                htmlFor={dept}
-                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex items-center gap-2"
-                              >
-                                <div 
-                                  className="w-3 h-3 rounded-full" 
-                                  style={{ backgroundColor: departmentColors[dept as keyof typeof departmentColors] }}
-                                />
+                              <Checkbox id={dept} checked={selectedDepartments.includes(dept)} onCheckedChange={() => handleDepartmentToggle(dept)} />
+                              <label htmlFor={dept} className="text-sm font-medium leading-none cursor-pointer flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: departmentColors[dept] }} />
                                 {dept}
                               </label>
                             </div>
@@ -804,30 +774,12 @@ useEffect(() => {
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={getFilteredData()}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="month" 
-                      tick={{ fontSize: 12 }}
-                    />
-                    <YAxis 
-                      domain={[70, 100]}
-                      tick={{ fontSize: 12 }}
-                      label={{ value: 'KPI (%)', angle: -90, position: 'insideLeft' }}
-                    />
-                    <Tooltip 
-                      formatter={(value, name) => [`${value}%`, name]}
-                      labelFormatter={(label) => `Month: ${label}`}
-                    />
+                    <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} label={{ value: 'KPI (%)', angle: -90, position: 'insideLeft' }} />
+                    <Tooltip formatter={(value, name) => [`${value}%`, name]} labelFormatter={(label) => `Month: ${label}`} />
                     <Legend />
                     {getDepartmentsToRender().map((dept) => (
-                      <Line
-                        key={dept}
-                        type="monotone"
-                        dataKey={dept}
-                        stroke={departmentColors[dept as keyof typeof departmentColors]}
-                        strokeWidth={3}
-                        dot={{ fill: departmentColors[dept as keyof typeof departmentColors], strokeWidth: 2, r: 4 }}
-                        activeDot={{ r: 6 }}
-                      />
+                      <Line key={dept} type="monotone" dataKey={dept} stroke={departmentColors[dept] || '#333'} strokeWidth={3} dot={{ fill: departmentColors[dept] || '#333', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
                     ))}
                   </LineChart>
                 </ResponsiveContainer>
@@ -845,40 +797,16 @@ useEffect(() => {
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <Select value={selectedAttendanceDepartment} onValueChange={setSelectedAttendanceDepartment}>
-                    <SelectTrigger className="w-40">
-                      <SelectValue placeholder="Department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departments.map((dept) => (
-                        <SelectItem key={dept} value={dept}>
-                          {dept}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
+                    <SelectTrigger className="w-40"><SelectValue placeholder="Department" /></SelectTrigger>
+                    <SelectContent>{departments.map((dept) => <SelectItem key={dept} value={dept}>{dept}</SelectItem>)}</SelectContent>
                   </Select>
                   <Select value={selectedAttendanceMonth.toString()} onValueChange={(value) => setSelectedAttendanceMonth(parseInt(value))}>
-                    <SelectTrigger className="w-32">
-                      <SelectValue placeholder="Month" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {getMonthOptions().map((month) => (
-                        <SelectItem key={month.value} value={month.value.toString()}>
-                          {month.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
+                    <SelectTrigger className="w-32"><SelectValue placeholder="Month" /></SelectTrigger>
+                    <SelectContent>{getMonthOptions().map((month) => <SelectItem key={month.value} value={month.value.toString()}>{month.label}</SelectItem>)}</SelectContent>
                   </Select>
                   <Select value={selectedAttendanceYear.toString()} onValueChange={(value) => setSelectedAttendanceYear(parseInt(value))}>
-                    <SelectTrigger className="w-20">
-                      <SelectValue placeholder="Year" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {getYearOptions().map((year) => (
-                        <SelectItem key={year} value={year.toString()}>
-                          {year}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
+                    <SelectTrigger className="w-20"><SelectValue placeholder="Year" /></SelectTrigger>
+                    <SelectContent>{getYearOptions().map((year) => <SelectItem key={year} value={year.toString()}>{year}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
               </div>
@@ -901,13 +829,7 @@ useEffect(() => {
                     </div>
                     <p className="text-sm font-medium text-foreground">Failed to load attendance data</p>
                     <p className="text-sm text-muted-foreground max-w-md">{errorAttendance}</p>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => window.location.reload()}
-                    >
-                      Retry
-                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Retry</Button>
                   </div>
                 </div>
               ) : attendanceData.length === 0 ? (
@@ -952,10 +874,7 @@ useEffect(() => {
                         {days.map((dayInfo) => {
                           const status = employee[`day${dayInfo.day}` as keyof typeof employee] as string;
                           return (
-                            <TableCell 
-                              key={dayInfo.day} 
-                              className={`text-center text-sm ${dayInfo.isWeekend ? 'bg-muted/30' : ''}`}
-                            >
+                            <TableCell key={dayInfo.day} className={`text-center text-sm ${dayInfo.isWeekend ? 'bg-muted/30' : ''}`}>
                               <span className={`
                                 inline-block w-6 h-6 rounded text-xs leading-6 font-medium
                                 ${status === '✓' ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300' : 
@@ -978,15 +897,7 @@ useEffect(() => {
                           {employee.absentDays}
                         </TableCell>
                         <TableCell className="sticky right-0 bg-background z-20 text-center font-medium shadow-sm">
-                          <Badge 
-                            variant="outline" 
-                            className={`
-                              ${employee.attendanceRate >= 95 ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300 border-green-200 dark:border-green-800' : 
-                                employee.attendanceRate >= 85 ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800' : 
-                                employee.attendanceRate >= 75 ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800' : 
-                                'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800'}
-                            `}
-                          >
+                          <Badge variant="outline" className={employee.attendanceRate >= 95 ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300 border-green-200 dark:border-green-800' : employee.attendanceRate >= 85 ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800' : employee.attendanceRate >= 75 ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800' : 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800'}>
                             {employee.attendanceRate}%
                           </Badge>
                         </TableCell>
@@ -1062,37 +973,39 @@ useEffect(() => {
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                   <CardTitle>Top 5 Performers - {selectedEmployeeDepartment} Department</CardTitle>
-                  <CardDescription>Top performing employees based on performance metrics</CardDescription>
+                  <CardDescription>Top performing employees based on KPI bulanan (Score Kehadiran & Score Pelatihan)</CardDescription>
                 </div>
                 <Select value={selectedEmployeeDepartment} onValueChange={setSelectedEmployeeDepartment}>
-                  <SelectTrigger className="w-48">
-                    <SelectValue placeholder="Select Department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departments.map((dept) => (
-                      <SelectItem key={dept} value={dept}>
-                        {dept}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
+                  <SelectTrigger className="w-48"><SelectValue placeholder="Select Department" /></SelectTrigger>
+                  <SelectContent>{departments.map((dept) => <SelectItem key={dept} value={dept}>{dept}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Rank</TableHead>
-                    <TableHead>Employee</TableHead>
-                    <TableHead>Position</TableHead>
-                    <TableHead>Performance</TableHead>
-                    <TableHead>Productivity</TableHead>
-                    <TableHead>Attendance</TableHead>
-                    <TableHead>Rating</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {getTopEmployees().map((employee, index) => (
+              {loadingKpi || !kpiBulanan || kpiBulanan.length === 0 ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                    <p className="text-sm text-muted-foreground">Loading KPI performance data...</p>
+                  </div>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Rank</TableHead>
+                      <TableHead>Employee</TableHead>
+                      <TableHead>Position</TableHead>
+                      <TableHead>KPI Final</TableHead>
+                      <TableHead>Score Pelatihan</TableHead>
+                      <TableHead>Score Kehadiran</TableHead>
+                      <TableHead>Rating</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {getEmployeesWithKPIBulanan(selectedEmployeeDepartment)
+                      .slice(0, 5)
+                      .map((employee: any, index: number) => (
                     <TableRow key={employee.id}>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
@@ -1102,58 +1015,45 @@ useEffect(() => {
                               index === 1 ? 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300' : 
                               index === 2 ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-300' : 
                               'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300'}
-                          `}>
-                            #{index + 1}
-                          </span>
+                          `}>#{index + 1}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="font-medium">{employee.name}</TableCell>
-                      <TableCell>{employee.position}</TableCell>
+                      <TableCell className="font-medium">{employee.nama || employee.name}</TableCell>
+                      <TableCell>{employee.jabatan?.[0]?.nama || employee.position}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 max-w-[100px]">
-                            <div 
-                              className="bg-blue-500 dark:bg-blue-400 h-2 rounded-full transition-all duration-300" 
-                              style={{ width: `${employee.performance}%` }}
-                            />
+                            <div className="bg-blue-500 dark:bg-blue-400 h-2 rounded-full transition-all duration-300" style={{ width: `${employee.kpiFinal || 0}%` }} />
                           </div>
-                          <span className="text-sm min-w-[35px]">{employee.performance}%</span>
+                          <span className="text-sm min-w-[35px]">{employee.kpiFinal || 0}%</span>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 max-w-[100px]">
-                            <div 
-                              className="bg-green-500 dark:bg-green-400 h-2 rounded-full transition-all duration-300" 
-                              style={{ width: `${employee.productivity}%` }}
-                            />
+                            <div className="bg-green-500 dark:bg-green-400 h-2 rounded-full transition-all duration-300" style={{ width: `${employee.scorePelatihan || 0}%` }} />
                           </div>
-                          <span className="text-sm min-w-[35px]">{employee.productivity}%</span>
+                          <span className="text-sm min-w-[35px]">{employee.scorePelatihan || 0}%</span>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 max-w-[100px]">
-                            <div 
-                              className="bg-yellow-500 dark:bg-yellow-400 h-2 rounded-full transition-all duration-300" 
-                              style={{ width: `${employee.attendance}%` }}
-                            />
+                            <div className="bg-yellow-500 dark:bg-yellow-400 h-2 rounded-full transition-all duration-300" style={{ width: `${employee.scoreKehadiran || 0}%` }} />
                           </div>
-                          <span className="text-sm min-w-[35px]">{employee.attendance}%</span>
+                          <span className="text-sm min-w-[35px]">{employee.scoreKehadiran || 0}%</span>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge 
-                          variant="outline" 
-                          className={ratingColors[employee.rating as keyof typeof ratingColors]}
-                        >
-                          {employee.rating}
+                        <Badge variant="outline" className={ratingColors[employee.rating || 'Average']}>
+                          {employee.rating || 'Average'}
                         </Badge>
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
+              )}
             </CardContent>
           </Card>
         </div>
