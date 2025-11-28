@@ -107,12 +107,23 @@ export const Karyawan = () => {
     type: "success",
     message: "",
   });
+  const [selectedDepartmentFilter, setSelectedDepartmentFilter] = useState<string>('Semua Departemen');
 
   const showAlert = (type: "success" | "error", message: string) => {
     setAlert({ show: true, type, message });
     setTimeout(() => {
       setAlert({ show: false, type: "success", message: "" });
     }, 5000);
+  };
+
+  const getFilteredKaryawan = () => {
+    if (selectedDepartmentFilter === 'Semua Departemen') {
+      return karyawan;
+    }
+    
+    return karyawan.filter(k => 
+      k.departemen?.some(d => d.nama === selectedDepartmentFilter)
+    );
   };
 
   const fetchKaryawan = async () => {
@@ -389,6 +400,29 @@ export const Karyawan = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
+              {/* Filter Section */}
+              <div className="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="department-filter" className="text-sm font-medium whitespace-nowrap">
+                    Filter Departemen:
+                  </Label>
+                  <Select value={selectedDepartmentFilter} onValueChange={setSelectedDepartmentFilter}>
+                    <SelectTrigger className="w-48" id="department-filter">
+                      <SelectValue placeholder="Pilih Departemen" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Semua Departemen">Semua Departemen</SelectItem>
+                      {departemen.map((dept) => (
+                        <SelectItem key={dept.id} value={dept.nama}>{dept.nama}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {getFilteredKaryawan().length} dari {karyawan.length} karyawan
+                </div>
+              </div>
+
               {loading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
@@ -396,6 +430,10 @@ export const Karyawan = () => {
               ) : karyawan.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   Belum ada data karyawan
+                </div>
+              ) : getFilteredKaryawan().length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  Tidak ada karyawan di departemen {selectedDepartmentFilter}
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -413,7 +451,7 @@ export const Karyawan = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {karyawan.map((k, index) => (
+                      {getFilteredKaryawan().map((k, index) => (
                         <TableRow key={k.id}>
                           <TableCell>{index + 1}</TableCell>
                           <TableCell className="font-medium">
@@ -424,9 +462,9 @@ export const Karyawan = () => {
                             {k.jabatan?.[0] ? (
                               <div className="flex flex-col gap-1">
                                 <span>{k.jabatan[0].nama}</span>
-                                {k.jabatan[0].level && (
+                                {(k.jabatan[0] as any).level && (
                                   <span className="inline-flex w-fit items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
-                                    {k.jabatan[0].level}
+                                    {(k.jabatan[0] as any).level}
                                   </span>
                                 )}
                               </div>

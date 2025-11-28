@@ -1,60 +1,8 @@
+// src/pages/Dashboard.tsx
 import { useEffect, useState, useMemo } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { useAuthStore } from '../stores/authStore';
 import { departemenAPI, kehadiranAPI, karyawanAPI, kpiAPI } from '../services/api';
-
-// KPI Bulanan API - temporary until backend implements this endpoint
-const kpiBulananAPI = {
-  getAll: async () => {
-    // For now, transform regular KPI data to simulate KPI bulanan
-    // This should be replaced with actual /api/kpi-bulanan endpoint when available
-    try {
-      const kpiResponse = await kpiAPI.getAll();
-      const kpiData = kpiResponse.data || [];
-      
-      // Transform to expected kpiBulanan format
-      const bulananData: any[] = [];
-      const currentDate = new Date();
-      
-      // Group by department
-      const deptGroups: Record<string, any[]> = {};
-      kpiData.forEach((kpi: any) => {
-        const dept = kpi.karyawan?.departemen?.[0]?.nama;
-        if (dept) {
-          if (!deptGroups[dept]) deptGroups[dept] = [];
-          deptGroups[dept].push(kpi);
-        }
-      });
-      
-      // Generate last 12 months data
-      for (let i = 11; i >= 0; i--) {
-        const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
-        const bulan = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        
-        Object.entries(deptGroups).forEach(([dept, kpis]) => {
-          const avgScore = kpis.reduce((sum, kpi) => sum + kpi.score, 0) / kpis.length;
-          // Add monthly variation
-          const variation = (Math.sin(i * 0.5) * 5); // Consistent variation
-          const finalScore = Math.max(0, Math.min(100, avgScore + variation));
-          
-          bulananData.push({
-            departemenId: `dept-${dept}`,
-            departemen: dept,
-            bulan,
-            scorePresensi: Math.round(finalScore * 0.4), // 40% weight
-            scorePelatihan: Math.round(finalScore * 0.6), // 60% weight  
-            kpiFinal: Math.round(finalScore)
-          });
-        });
-      }
-      
-      return { status: 200, message: 'Success', data: bulananData };
-    } catch (error) {
-      console.error('Error in kpiBulananAPI:', error);
-      return { status: 500, message: 'Error', data: [] };
-    }
-  }
-};
 import type { Kehadiran } from '../types/kehadiran';
 
 import {
@@ -110,10 +58,10 @@ const departmentColors: Record<string, string> = {
 };
 
 const ratingColors: Record<string, string> = {
-  'Excellent': 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300 border-green-200 dark:border-green-800',
-  'Good': 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800',
-  'Average': 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800',
-  'Poor': 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800',
+  Excellent: 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300 border-green-200 dark:border-green-800',
+  Good: 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800',
+  Average: 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800',
+  Poor: 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800',
 };
 
 // Trend Icon Component
@@ -128,7 +76,7 @@ const TrendIcon = ({ trend }: { trend: 'up' | 'down' | 'stable' }) => {
       </div>
     );
   }
-  
+
   if (trend === 'down') {
     return (
       <div className="flex items-center gap-1">
@@ -139,7 +87,7 @@ const TrendIcon = ({ trend }: { trend: 'up' | 'down' | 'stable' }) => {
       </div>
     );
   }
-  
+
   return (
     <div className="flex items-center gap-1">
       <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="currentColor" viewBox="0 0 20 20">
@@ -154,8 +102,8 @@ export const Dashboard = () => {
   const { user, fetchUser } = useAuthStore();
 
   // Selection & UI state
-  const [selectedDepartments, setSelectedDepartments] = useState<string[]>(['Analytics', 'Finance', 'Technology']);
-  const [selectedEmployeeDepartment, setSelectedEmployeeDepartment] = useState('Analytics');
+  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
+  const [selectedEmployeeDepartment, setSelectedEmployeeDepartment] = useState('Semua Departemen');
   const [selectedAttendanceDepartment, setSelectedAttendanceDepartment] = useState('Analytics');
   const [selectedAttendanceMonth, setSelectedAttendanceMonth] = useState(new Date().getMonth());
   const [selectedAttendanceYear, setSelectedAttendanceYear] = useState(new Date().getFullYear());
@@ -171,23 +119,66 @@ export const Dashboard = () => {
   const [errorAttendance, setErrorAttendance] = useState<string | null>(null);
   const [loadingKpi, setLoadingKpi] = useState(false);
 
+  // Debug logging
+  console.log('=== DASHBOARD STATE DEBUG ===');
+  console.log('Dashboard state:', {
+    kpiBulananLength: kpiBulanan.length,
+    departmentsLength: departments.length,
+    karyawanLength: karyawan.length,
+    loadingKpi,
+    loadingAttendance
+  });
+  console.log('KPI Bulanan Raw Data:', kpiBulanan);
+  console.log('Departments Array:', departments);
+  console.log('Selected Departments:', selectedDepartments);
+  console.log('================================');
+
   // initial load: user, departments, karyawan, kpi
   useEffect(() => {
     fetchUser().catch(console.error);
 
-    // load departemen
+    // load departemen from API, but will be updated with KPI departments later
     const loadDepartments = async () => {
       try {
+        console.log('Loading departments from API...');
         const res = await departemenAPI.getAll();
-        const names = (res.data || []).map((d: any) => d.nama);
-        setDepartments(names);
-        if (names.length > 0) {
-          setSelectedDepartments(names.slice(0, 3));
-          setSelectedEmployeeDepartment(names[0]);
-          setSelectedAttendanceDepartment(names[0]);
+        console.log('Departments API response:', res);
+        
+        let deptData = res?.data || res;
+        if (!Array.isArray(deptData)) {
+          console.log('Department data not array, checking properties:', deptData);
+          deptData = (deptData as any)?.data || (deptData as any)?.departments || [];
+        }
+        
+        const allDeptNames = (deptData || []).map((d: any) => d.nama || d.name || d.departemen || 'Unknown Dept');
+        console.log('All departments from departemenAPI:', allDeptNames);
+        
+        // Initially set all departments, will be filtered by KPI data availability later
+        console.log('Setting departments:', allDeptNames);
+        setDepartments(allDeptNames);
+        
+        if (allDeptNames.length > 0) {
+          const initialSelected = allDeptNames; // Select all departments initially
+          console.log('Setting selected departments (all):', initialSelected);
+          setSelectedDepartments(initialSelected);
+          
+          // Auto-select first department if none selected and not 'Semua Departemen'
+          if (!selectedEmployeeDepartment || selectedEmployeeDepartment === '') {
+            console.log('Setting employee department:', allDeptNames[0]);
+            setSelectedEmployeeDepartment(allDeptNames[0]);
+          }
+          console.log('Setting attendance department:', allDeptNames[0]);
+          setSelectedAttendanceDepartment(allDeptNames[0]);
+        } else {
+          console.log('No departments loaded from API');
         }
       } catch (err) {
         console.error("Failed to load departments", err);
+        // No fallback data - if API fails, no departments will be available
+        setDepartments([]);
+        setSelectedDepartments([]);
+        setSelectedEmployeeDepartment('');
+        setSelectedAttendanceDepartment('');
       }
     };
 
@@ -201,15 +192,144 @@ export const Dashboard = () => {
       }
     };
 
-    // load KPI bulanan
+    // load KPI bulanan from backend
     const loadKpi = async () => {
       try {
         setLoadingKpi(true);
-        const res = await kpiBulananAPI.getAll();
-        // API returns: {status, message, data: [{departemenId, departemen, bulan, scorePresensi, scorePelatihan, kpiFinal}]}
-        setKpiBulanan(res.data || []);
+        console.log('=== API CALL START ===');
+        console.log('Calling kpiAPI.getBulanan()...');
+        
+        // Test API availability first
+        const res = await kpiAPI.getBulanan();
+        
+        console.log('=== API RESPONSE RECEIVED ===');
+        console.log('Full response object:', res);
+        console.log('Response status:', res?.status);
+        console.log('Response headers:', res?.headers);
+        console.log('Response data property:', res?.data);
+        console.log('Response type:', typeof res);
+        console.log('========================');
+        
+        // Try different response structures
+        let raw = null;
+        if (res?.data) {
+          raw = res.data;
+          console.log('Using res.data');
+        } else if (Array.isArray(res)) {
+          raw = res;
+          console.log('Response is direct array');
+        } else if (res?.result || res?.results) {
+          raw = res.result || res.results;
+          console.log('Using res.result/results');
+        } else {
+          raw = res;
+          console.log('Using raw response');
+        }
+        
+        console.log('Extracted raw data:', raw);
+        console.log('Raw data type:', typeof raw);
+        console.log('Is raw data array?:', Array.isArray(raw));
+        
+        if (!raw) {
+          console.error('No data received from API');
+          setKpiBulanan([]);
+          return;
+        }
+        
+        if (!Array.isArray(raw)) {
+          console.error('Expected array but got:', typeof raw, raw);
+          console.log('Attempting to find array in object properties...');
+          
+          // Try to find array in common property names
+          const possibleArrays = ['data', 'items', 'results', 'records', 'kpiData'];
+          let foundArray = null;
+          
+          for (const prop of possibleArrays) {
+            if (raw[prop] && Array.isArray(raw[prop])) {
+              foundArray = raw[prop];
+              console.log(`Found array in property: ${prop}`);
+              break;
+            }
+          }
+          
+          if (foundArray) {
+            raw = foundArray;
+          } else {
+            console.error('Could not find array data in response');
+            setKpiBulanan([]);
+            return;
+          }
+        }
+        
+        console.log('Processing array with length:', raw.length);
+        
+        // Process KPI data with proper parameter structure
+        const clean = (raw || []).map((x: any, index: number) => {
+          console.log(`Processing item ${index}:`, x);
+          
+          const processed = {
+            departemenId: x.departemenId || x.id || `dept-${index}`,
+            departemen: x.departemen || x.department || x.nama || 'Unknown',
+            bulan: x.bulan || x.month || x.periode || '2025-11',
+            scorePresensi: Number(x.scorePresensi || x.attendance_score || x.presensi || 0),
+            scorePelatihan: Number(x.scorePelatihan || x.training_score || x.pelatihan || 0),
+            bobotPresensi: Number(x.bobotPresensi || x.attendance_weight || 60),
+            bobotPelatihan: Number(x.bobotPelatihan || x.training_weight || 40),
+            totalBobotIndikatorLain: Number(x.totalBobotIndikatorLain || 0),
+            totalScoreIndikatorLain: Number(x.totalScoreIndikatorLain || 0),
+            kpiFinal: Number(x.kpiFinal || x.finalKPI || x.kpi || x.score || 0)
+          };
+          
+          console.log(`Processed item ${index}:`, processed);
+          return processed;
+        });
+        
+        console.log('=== FINAL PROCESSING RESULT ===');
+        console.log('Final cleaned data length:', clean.length);
+        console.log('Final cleaned data:', clean);
+        console.log('==============================');
+        
+        setKpiBulanan(clean);
+        
+        // Update departments list with only departments that have KPI data
+        const departmentsWithKPI = [...new Set(clean.map((item: any) => item.departemen))];
+        console.log('Departments with KPI data:', departmentsWithKPI);
+        
+        if (departmentsWithKPI.length > 0) {
+          setDepartments(departmentsWithKPI);
+          // Update selected departments to include all departments with KPI data
+          setSelectedDepartments(departmentsWithKPI);
+          // Update selected employee department if current selection has no KPI data (except 'Semua Departemen')
+          if (selectedEmployeeDepartment !== 'Semua Departemen' && !departmentsWithKPI.includes(selectedEmployeeDepartment)) {
+            setSelectedEmployeeDepartment(departmentsWithKPI[0]);
+          }
+        }
       } catch (err) {
-        console.error("Failed to load KPI bulanan", err);
+        console.error("=== KPI LOADING ERROR ===");
+        console.error("Full error details:", err);
+        const errorObj = err as any;
+        console.error("Error message:", errorObj?.message);
+        console.error("Error stack:", errorObj?.stack);
+        
+        if (errorObj?.response) {
+          console.error("Response status:", errorObj.response.status);
+          console.error("Response statusText:", errorObj.response.statusText);
+          console.error("Response data:", errorObj.response.data);
+          console.error("Response headers:", errorObj.response.headers);
+        }
+        
+        if (errorObj?.request) {
+          console.error("Request made but no response:", errorObj.request);
+        }
+        
+        console.error("========================");
+        
+        // No dummy data - only show error state
+        console.log('API failed, no data will be displayed');
+        setKpiBulanan([]);
+        setDepartments([]);
+        setSelectedDepartments([]);
+        setSelectedEmployeeDepartment('');
       } finally {
         setLoadingKpi(false);
       }
@@ -224,18 +344,17 @@ export const Dashboard = () => {
   useEffect(() => {
     const loadAttendanceData = async () => {
       if (!user) return;
-      
+
       setLoadingAttendance(true);
       setErrorAttendance(null);
-      
+
       try {
         const params = {
           month: selectedAttendanceMonth + 1, // backend expects 1-based month
           year: selectedAttendanceYear,
         };
-        
+
         const response = await kehadiranAPI.getAll(params);
-        // response likely { status, message, data }
         setAttendanceRecords(response.data || []);
       } catch (err: any) {
         console.error('Failed to load attendance data:', err);
@@ -251,8 +370,8 @@ export const Dashboard = () => {
 
   // Helper utils
   const getMonthName = (monthIndex: number) => {
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                      'July', 'August', 'September', 'October', 'November', 'December'];
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'];
     return monthNames[monthIndex];
   };
 
@@ -303,33 +422,56 @@ export const Dashboard = () => {
   };
 
   // ---------- KPI data transformation ----------
-  // Transform KPI data for chart visualization
-  // KPI data structure: { id, year, score, karyawan: { departemen: [{ nama }] } }
-
+  // Convert backend kpiBulanan (array of {departemenId, departemen, bulan, kpiFinal, scorePresensi, scorePelatihan, bobotPresensi, bobotPelatihan, totalBobotIndikatorLain, totalScoreIndikatorLain}) into chart-friendly series
   const getLast12MonthsData = useMemo(() => {
-    // Group kpiBulanan data by month
+    // Group kpiBulanan data by month (YYYY-MM)
     const grouped: Record<string, any> = {};
 
+    if (!kpiBulanan || kpiBulanan.length === 0) {
+      console.log('No KPI bulanan data available for chart');
+      return [];
+    }
+
     kpiBulanan.forEach((item: any) => {
-      const month = item.bulan; // '2025-11'
-      if (!grouped[month]) grouped[month] = { month, bulan: month };
-      grouped[month][item.departemen] = Math.round(item.kpiFinal ?? 0);
+      // Extract parameters from backend data structure
+      const bulanParam = item.bulan; // X-axis: "2025-10" format
+      const departemenName = item.departemen; // Department name for grouping
+      const departemenId = item.departemenId; // Unique department identifier
+      const kpiValue = Number(item.kpiFinal) || 0; // Y-axis: KPI performance value
+      
+      if (!bulanParam || !departemenName) return;
+      
+      // Format month for display (2025-10 -> Oct 2025)
+      const [year, month] = bulanParam.split('-');
+      const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const displayMonth = `${monthNames[parseInt(month, 10) - 1]} ${year}`;
+      
+      if (!grouped[bulanParam]) {
+        grouped[bulanParam] = { 
+          month: displayMonth, // Display format for chart
+          bulan: bulanParam,   // Original parameter for sorting
+          rawMonth: bulanParam // Keep original for filtering
+        };
+      }
+      
+      // Map department KPI values for line chart
+      grouped[bulanParam][departemenName] = kpiValue;
+      console.log(`Chart Data - Bulan: ${bulanParam}, Display: ${displayMonth}, Dept: ${departemenName} (${departemenId}), KPI: ${kpiValue}`);
     });
 
-    // Sort months ascending and transform to display format
+      // Sort by month variable and keep as parameter
     const sorted = Object.values(grouped)
-      .sort((a: any, b: any) => (a.month > b.month ? 1 : -1))
-      .map((item: any) => {
-        const [year, month] = item.bulan.split('-');
-        const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        const monthName = monthNames[parseInt(month) - 1];
-        
-        return {
-          ...item,
-          month: `${monthName} ${year}`
-        };
-      });
-      
+      .sort((a: any, b: any) => (a.bulan > b.bulan ? 1 : -1))
+      .map((item: any) => ({
+        ...item,
+        // Use display format for chart X-axis
+        month: item.month || item.displayMonth || item.bulan
+      }));    console.log('=== CHART DATA PROCESSING ===');
+    console.log('Grouped data:', grouped);
+    console.log('Sorted chart data:', sorted);
+    console.log('Chart data length:', sorted.length);
+    console.log('=============================');
+
     return sorted;
   }, [kpiBulanan]);
 
@@ -340,88 +482,180 @@ export const Dashboard = () => {
   const [chartEndYear, setChartEndYear] = useState<number>(new Date().getFullYear());
 
   const getFilteredData = () => {
-    // if no kpi data, return empty
-    if (!getLast12MonthsData || getLast12MonthsData.length === 0) return [];
+    if (!getLast12MonthsData || getLast12MonthsData.length === 0) {
+      console.log('No chart data available for filtering');
+      return [];
+    }
 
-    // convert chartStartMonth/startYear & end to Date objects
     const startDate = new Date(chartStartYear, chartStartMonth < 0 ? 0 : chartStartMonth);
     const endDate = new Date(chartEndYear, chartEndMonth);
 
     const filtered = getLast12MonthsData.filter((item: any) => {
-      // Parse month string like "Nov 2025"
-      const monthStr = item.month;
-      const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      const parts = monthStr.split(' ');
-      if (parts.length !== 2) return true; // fallback to include if parsing fails
+      // Use rawMonth (2025-10) for proper filtering instead of display format
+      const monthStr = item.rawMonth || item.bulan; // Use backend format "2025-10"
+      if (!monthStr) return false;
       
-      const monthIndex = monthNames.indexOf(parts[0]);
-      const year = parseInt(parts[1]);
+      const [year, month] = monthStr.split('-');
+      const itemDate = new Date(parseInt(year, 10), parseInt(month, 10) - 1);
+      const inRange = itemDate >= startDate && itemDate <= endDate;
       
-      if (monthIndex === -1 || !year) return true; // fallback
-      
-      const itemDate = new Date(year, monthIndex);
-      return itemDate >= startDate && itemDate <= endDate;
+      console.log(`Filtering: ${monthStr} -> ${itemDate.toISOString().slice(0, 7)} in range ${startDate.toISOString().slice(0, 7)} to ${endDate.toISOString().slice(0, 7)}: ${inRange}`);
+      return inRange;
     });
 
-    // Return the filtered data as is since it's already in the right format
+    console.log('Filtered chart data:', filtered);
     return filtered;
   };
 
   const getDepartmentsToRender = () => selectedDepartments;
 
-  // Department KPI helpers for cards
+  // Department KPI cards - compare bulan ini vs bulan lalu using departemenId
   const getDeptKpi = (dept: string) => {
+    // Filter by departemen name to get departemenId data
     const deptData = (kpiBulanan || []).filter((x: any) => x.departemen === dept);
-    if (deptData.length === 0) return { latest: 0, prev: 0 };
+    
+    // If no data found, return null to indicate no data available
+    if (deptData.length === 0) {
+      console.log(`No KPI data found for department: ${dept}`);
+      return null;
+    }
 
+    // Sort by bulan ascending to get proper month comparison
     const sorted = [...deptData].sort((a: any, b: any) => (a.bulan > b.bulan ? 1 : -1));
-    const latest = Math.round(sorted[sorted.length - 1]?.kpiFinal || 0);
-    const prev = Math.round(sorted[sorted.length - 2]?.kpiFinal || latest);
-    return { latest, prev };
+    
+    // Get bulan ini (current/latest) and bulan lalu (previous)
+    const currentMonthData = sorted[sorted.length - 1]; // bulan ini
+    const previousMonthData = sorted[sorted.length - 2]; // bulan lalu
+    
+    // Extract KPI parameters from backend data structure
+    const currentKPI = Number(currentMonthData?.kpiFinal) || 0;
+    const previousKPI = Number(previousMonthData?.kpiFinal) || 0;
+    const departemenId = currentMonthData?.departemenId;
+    const currentScorePresensi = Number(currentMonthData?.scorePresensi) || 0;
+    const currentScorePelatihan = Number(currentMonthData?.scorePelatihan) || 0;
+    const bobotPresensi = Number(currentMonthData?.bobotPresensi) || 0;
+    const bobotPelatihan = Number(currentMonthData?.bobotPelatihan) || 0;
+    
+    console.log(`Dept KPI Analysis - ${dept}:`, {
+      departemenId,
+      currentMonth: currentMonthData?.bulan,
+      previousMonth: previousMonthData?.bulan,
+      kpiCurrent: currentKPI,
+      kpiPrevious: previousKPI,
+      kpiChange: currentKPI - previousKPI,
+      scorePresensi: currentScorePresensi,
+      scorePelatihan: currentScorePelatihan,
+      bobot: { presensi: bobotPresensi, pelatihan: bobotPelatihan }
+    });
+    
+    // Format month names for display
+    const formatMonth = (monthStr: string) => {
+      if (!monthStr) return '';
+      const [year, month] = monthStr.split('-');
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${monthNames[parseInt(month, 10) - 1]} ${year}`;
+    };
+    
+    return { 
+      latest: currentKPI,
+      prev: previousKPI,
+      currentMonth: formatMonth(currentMonthData?.bulan),
+      previousMonth: formatMonth(previousMonthData?.bulan),
+      departemenId,
+      scorePresensi: currentScorePresensi,
+      scorePelatihan: currentScorePelatihan,
+      bobotPresensi,
+      bobotPelatihan
+    };
   };
 
   // Cards and KPI stats
   const calculateAverageKPI = () => {
     if (!kpiBulanan || kpiBulanan.length === 0) return 0;
-    const avg = kpiBulanan.reduce((a: number, b: any) => a + (b.kpiFinal ?? 0), 0) / kpiBulanan.length;
-    return Math.round(avg);
+    // Calculate average from all department KPI finals
+    const totalKPI = kpiBulanan.reduce((sum: number, item: any) => {
+      return sum + (Number(item.kpiFinal) || 0);
+    }, 0);
+    const average = totalKPI / kpiBulanan.length;
+    console.log('Average KPI Calculation:', { totalRecords: kpiBulanan.length, totalKPI, average });
+    return Math.round(average);
   };
 
   const getCurrentMonthKPI = () => {
     if (!kpiBulanan || kpiBulanan.length === 0) return 0;
-    const months = [...kpiBulanan].map((x: any) => x.bulan);
-    const latestMonth = months.sort().pop();
+    // Get latest month data based on bulan parameter
+    const monthsData = [...kpiBulanan].sort((a, b) => (a.bulan > b.bulan ? -1 : 1));
+    const latestMonth = monthsData[0]?.bulan;
     if (!latestMonth) return 0;
-    const monthData = kpiBulanan.filter((x: any) => x.bulan === latestMonth);
-    const avg = monthData.reduce((a: number, b: any) => a + (b.kpiFinal ?? 0), 0) / (monthData.length || 1);
-    return Math.round(avg);
+    
+    const currentMonthData = kpiBulanan.filter((item: any) => item.bulan === latestMonth);
+    const monthlyKPI = currentMonthData.reduce((sum: number, item: any) => {
+      return sum + (Number(item.kpiFinal) || 0);
+    }, 0) / (currentMonthData.length || 1);
+    
+    console.log('Current Month KPI:', { month: latestMonth, departments: currentMonthData.length, average: monthlyKPI });
+    return Math.round(monthlyKPI);
   };
 
   const getTotalEmployees = () => karyawan.length;
 
-
-
   // Helper function to get employees with KPI bulanan scores
   const getEmployeesWithKPIBulanan = (departmentName: string) => {
-    const departmentEmployees = (karyawan || []).filter(e => 
+    // Handle "Semua Departemen" case
+    if (departmentName === 'Semua Departemen') {
+      // Get all employees from all departments
+      const allEmployees: any[] = [];
+      
+      departments.forEach(dept => {
+        const deptEmployees = (karyawan || []).filter(e =>
+          e.departemen?.some((d: any) => d.nama === dept)
+        );
+        
+        const departmentKPIData = (kpiBulanan || []).filter(item => item.departemen === dept);
+        
+        if (departmentKPIData.length > 0) {
+          const sortedKPIData = [...departmentKPIData].sort((a, b) => (a.bulan > b.bulan ? 1 : -1));
+          const latestKPIData = sortedKPIData[sortedKPIData.length - 1];
+          
+          const deptScorePresensi = Number(latestKPIData?.scorePresensi) || 0;
+          const deptScorePelatihan = Number(latestKPIData?.scorePelatihan) || 0;
+          const deptKpiFinal = Number(latestKPIData?.kpiFinal) || 0;
+          const bobotPresensi = Number(latestKPIData?.bobotPresensi) || 0;
+          const bobotPelatihan = Number(latestKPIData?.bobotPelatihan) || 0;
+          const departemenId = latestKPIData?.departemenId;
+          
+          deptEmployees.forEach(employee => {
+            allEmployees.push({
+              ...employee,
+              scoreKehadiran: deptScorePresensi,
+              scorePelatihan: deptScorePelatihan,
+              kpiFinal: deptKpiFinal,
+              performance: deptKpiFinal,
+              productivity: deptScorePelatihan,
+              attendance: deptScorePresensi,
+              rating: deptKpiFinal >= 90 ? 'Excellent' : deptKpiFinal >= 75 ? 'Good' : deptKpiFinal >= 60 ? 'Average' : 'Poor',
+              departemenId,
+              bobotPresensi,
+              bobotPelatihan,
+              departemenNama: dept // Add department name for display
+            });
+          });
+        }
+      });
+      
+      return allEmployees.sort((a: any, b: any) => (b.kpiFinal || 0) - (a.kpiFinal || 0));
+    }
+
+    const departmentEmployees = (karyawan || []).filter(e =>
       e.departemen?.some((d: any) => d.nama === departmentName)
     );
 
     // Get latest month's KPI data for the department
     const departmentKPIData = (kpiBulanan || []).filter(item => item.departemen === departmentName);
-    
+
     if (departmentKPIData.length === 0) {
-      // Return employees with default scores if no KPI data
-      return departmentEmployees.map(employee => ({
-        ...employee,
-        scoreKehadiran: 0,
-        scorePelatihan: 0,
-        kpiFinal: 0,
-        performance: 0,
-        productivity: 0,
-        attendance: 0,
-        rating: 'Poor'
-      }));
+      // Return empty array if no KPI data - no dummy data
+      return [];
     }
 
     // Get the latest month's data
@@ -429,28 +663,31 @@ export const Dashboard = () => {
     const latestKPIData = sortedKPIData[sortedKPIData.length - 1];
 
     return departmentEmployees.map((employee: any) => {
-      // For demonstration, distribute the department scores among employees with some variation
-      // In real scenario, this should be per-employee data from backend
-      const baseScoreKehadiran = latestKPIData?.scorePresensi || 0;
-      const baseScorePelatihan = latestKPIData?.scorePelatihan || 0;
-      const baseKPIFinal = latestKPIData?.kpiFinal || 0;
+      // Extract KPI parameters from backend data structure  
+      const deptScorePresensi = Number(latestKPIData?.scorePresensi) || 0;
+      const deptScorePelatihan = Number(latestKPIData?.scorePelatihan) || 0;
+      const deptKpiFinal = Number(latestKPIData?.kpiFinal) || 0;
+      const bobotPresensi = Number(latestKPIData?.bobotPresensi) || 0;
+      const bobotPelatihan = Number(latestKPIData?.bobotPelatihan) || 0;
+      const departemenId = latestKPIData?.departemenId;
       
-      // Add employee-specific variation (±10%)
-      const employeeVariation = (employee.id.slice(-2).charCodeAt(0) % 21 - 10) / 100; // -0.1 to 0.1
-      
-      const scoreKehadiran = Math.max(0, Math.min(100, Math.round(baseScoreKehadiran * (1 + employeeVariation))));
-      const scorePelatihan = Math.max(0, Math.min(100, Math.round(baseScorePelatihan * (1 + employeeVariation))));
-      const kpiFinal = Math.max(0, Math.min(100, Math.round(baseKPIFinal * (1 + employeeVariation))));
-      
+      // Use department baseline values directly - no artificial variation
+      const employeeScoreKehadiran = deptScorePresensi;
+      const employeeScorePelatihan = deptScorePelatihan;
+      const employeeKpiFinal = deptKpiFinal;
+
       return {
         ...employee,
-        scoreKehadiran,
-        scorePelatihan,
-        kpiFinal,
-        performance: kpiFinal,
-        productivity: scorePelatihan,
-        attendance: scoreKehadiran,
-        rating: kpiFinal >= 90 ? 'Excellent' : kpiFinal >= 75 ? 'Good' : kpiFinal >= 60 ? 'Average' : 'Poor'
+        scoreKehadiran: employeeScoreKehadiran,
+        scorePelatihan: employeeScorePelatihan,
+        kpiFinal: employeeKpiFinal,
+        performance: employeeKpiFinal,
+        productivity: employeeScorePelatihan,
+        attendance: employeeScoreKehadiran,
+        rating: employeeKpiFinal >= 90 ? 'Excellent' : employeeKpiFinal >= 75 ? 'Good' : employeeKpiFinal >= 60 ? 'Average' : 'Poor',
+        departemenId,
+        bobotPresensi,
+        bobotPelatihan
       };
     }).sort((a: any, b: any) => (b.kpiFinal || 0) - (a.kpiFinal || 0));
   };
@@ -460,7 +697,7 @@ export const Dashboard = () => {
     const year = selectedAttendanceYear;
     const month = selectedAttendanceMonth;
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    
+
     const filteredRecords = attendanceRecords.filter(record => {
       const karyawanDept = record.karyawan?.departemen?.[0]?.nama;
       return karyawanDept === selectedAttendanceDepartment;
@@ -477,7 +714,7 @@ export const Dashboard = () => {
       const karyawanId = record.karyawanId;
       const recordDate = new Date(record.tanggal);
       const day = recordDate.getDate();
-      
+
       if (!karyawanMap.has(karyawanId)) {
         karyawanMap.set(karyawanId, {
           id: karyawanId,
@@ -486,7 +723,7 @@ export const Dashboard = () => {
           records: new Map(),
         });
       }
-      
+
       karyawanMap.get(karyawanId)!.records.set(day, record);
     });
 
@@ -496,17 +733,17 @@ export const Dashboard = () => {
       let lateDays = 0;
       let absentDays = 0;
       let workingDaysCount = 0;
-      
+
       for (let day = 1; day <= daysInMonth; day++) {
         const date = new Date(year, month, day);
         const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-        
+
         if (isWeekend) {
           dailyAttendance[`day${day}`] = '-';
         } else {
           workingDaysCount++;
           const record = employeeData.records.get(day);
-          
+
           if (!record) {
             dailyAttendance[`day${day}`] = 'X';
             absentDays++;
@@ -531,10 +768,10 @@ export const Dashboard = () => {
           }
         }
       }
-      
+
       const totalAttended = presentDays + lateDays;
       const attendanceRate = workingDaysCount > 0 ? Math.round((totalAttended / workingDaysCount) * 100) : 0;
-      
+
       return {
         id: employeeData.id,
         name: employeeData.name,
@@ -547,7 +784,7 @@ export const Dashboard = () => {
         totalWorkingDays: workingDaysCount
       };
     });
-    
+
     return attendanceData;
   };
 
@@ -555,26 +792,26 @@ export const Dashboard = () => {
     const year = selectedAttendanceYear;
     const month = selectedAttendanceMonth;
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    
+
     const days = [];
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(year, month, day);
       const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
       const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-      
+
       days.push({
         day,
         dayName,
         isWeekend
       });
     }
-    
+
     return days;
   };
 
   const getAttendanceSummary = () => {
     const attendanceData = getAttendanceData();
-    
+
     if (attendanceData.length === 0) return {
       averageAttendance: 0,
       totalPresent: 0,
@@ -606,35 +843,73 @@ export const Dashboard = () => {
   return (
     <div className="flex h-screen bg-background">
       <Sidebar />
-      
+
       <main className="flex-1 overflow-y-auto p-8">
         <div className="mx-auto max-w-7xl space-y-6">
           {/* Header */}
-          <div>
+          <div className="flex justify-between items-center">
             <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
+            <div className="flex items-center gap-2 text-sm">
+              <div className={`w-2 h-2 rounded-full ${
+                loadingKpi ? 'bg-yellow-500' : 
+                kpiBulanan.length > 0 ? 'bg-green-500' : 'bg-red-500'
+              }`}></div>
+              <span className="text-muted-foreground">
+                {loadingKpi ? 'Loading...' : 
+                 kpiBulanan.length > 0 ? `API Connected (${kpiBulanan.length} records)` : 'No API Data'}
+              </span>
+            </div>
           </div>
 
           {/* Stats Cards */}
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            <Card>
-              <CardHeader>
-                <CardTitle>Average KPI (Last 12 Months)</CardTitle>
-                <CardDescription>Overall performance trend</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold text-green-600 dark:text-green-400">{calculateAverageKPI()}%</p>
-                <p className="text-sm text-muted-foreground">12-Month Average</p>
-              </CardContent>
-            </Card>
+            <div className="grid gap-6 md:grid-cols-3">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Average KPI (Last 12 Months)</CardTitle>
+                  <CardDescription>Overall performance trend</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {loadingKpi ? (
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600"></div>
+                      <p className="text-sm text-muted-foreground">Loading...</p>
+                    </div>
+                  ) : kpiBulanan.length === 0 ? (
+                    <div>
+                      <p className="text-3xl font-bold text-gray-400">0%</p>
+                      <p className="text-sm text-muted-foreground">No KPI data available</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-3xl font-bold text-green-600 dark:text-green-400">{calculateAverageKPI()}%</p>
+                      <p className="text-sm text-muted-foreground">12-Month Average ({kpiBulanan.length} records)</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
-            <Card>
+              <Card>
               <CardHeader>
                 <CardTitle>Current Month KPI</CardTitle>
                 <CardDescription>This month's performance</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{getCurrentMonthKPI()}%</p>
-                <p className="text-sm text-muted-foreground">Monthly Average</p>
+                {loadingKpi ? (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                    <p className="text-sm text-muted-foreground">Loading...</p>
+                  </div>
+                ) : kpiBulanan.length === 0 ? (
+                  <div>
+                    <p className="text-3xl font-bold text-gray-400">0%</p>
+                    <p className="text-sm text-muted-foreground">No current data</p>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{getCurrentMonthKPI()}%</p>
+                    <p className="text-sm text-muted-foreground">Monthly Average</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -645,44 +920,78 @@ export const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">{getTotalEmployees()}</p>
-                <p className="text-sm text-muted-foreground">Across {departments.length} departments</p>
+                <p className="text-sm text-muted-foreground">All departments</p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Department Performance Summary */}
+          {/* Department Performance Summary - KPI Final by Current & Previous Month */}
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            {departments.map((dept) => {
-              const { latest, prev } = getDeptKpi(dept);
-              const trend = latest > prev ? 'up' : latest < prev ? 'down' : 'stable';
-              const stats = { count: (karyawan || []).filter(k => k.departemen?.some((d: any) => d.nama === dept)).length || 0, avgPerformance: 0 };
+            {departments.length === 0 ? (
+              <div className="col-span-full text-center py-8">
+                <p className="text-muted-foreground">No departments available. Please check your connection to the backend API.</p>
+              </div>
+            ) : kpiBulanan.length === 0 ? (
+              <div className="col-span-full text-center py-8">
+                <p className="text-muted-foreground">No KPI data available. Please check your connection to the backend API.</p>
+              </div>
+            ) : (
+              departments.map((dept) => {
+                console.log(`Processing department card for: ${dept}`);
+                const deptKpiData = getDeptKpi(dept);
+                
+                // If no KPI data for this department, don't show the card
+                if (!deptKpiData) {
+                  return null;
+                }
 
-              return (
-                <Card key={dept} className="hover:shadow-lg transition-shadow duration-200">
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span className="text-sm font-semibold">{dept}</span>
-                      <TrendIcon trend={trend} />
-                    </CardTitle>
-                    <CardDescription>Department Overview</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div>
-                      <p className="text-2xl font-bold text-blue-500">{latest}%</p>
-                      <p className="text-sm text-muted-foreground">{latest - prev}% from last month</p>
-                    </div>
-                    <div className="pt-2 border-t space-y-1">
-                      <p className="text-sm text-muted-foreground">
-                        <span className="font-medium text-foreground">{stats.count}</span> employees
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Avg Performance: <span className="font-medium text-foreground">{stats.avgPerformance}%</span>
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                const { latest, prev, currentMonth, previousMonth, departemenId } = deptKpiData;
+                // Convert kpiFinal variables for comparison: bulan ini vs bulan lalu
+                const latestNum = Number(latest) || 0;  // kpiFinal bulan ini
+                const prevNum = Number(prev) || 0;      // kpiFinal bulan lalu
+                const trend = latestNum > prevNum ? 'up' : latestNum < prevNum ? 'down' : 'stable';
+                const trendValue = latestNum - prevNum; // selisih bulan ini - bulan lalu
+                const stats = { count: (karyawan || []).filter(k => k.departemen?.some((d: any) => d.nama === dept)).length || 0, avgPerformance: 0 };
+
+                return (
+                  <Card key={`dept-${dept}`} className="hover:shadow-lg transition-shadow duration-200" data-department-id={departemenId}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center justify-between">
+                        <span className="text-sm font-semibold">{dept}</span>
+                        <TrendIcon trend={trend} />
+                      </CardTitle>
+                      <CardDescription>KPI Final Comparison</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div>
+                        <p className="text-2xl font-bold text-blue-500">{latestNum.toFixed(1)}%</p>
+                        <p className="text-sm text-muted-foreground">
+                          KPI Final - {currentMonth}
+                        </p>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-muted-foreground">Bulan Lalu:</span>
+                        <span className="font-medium">{prevNum.toFixed(1)}% ({previousMonth})</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-muted-foreground">Selisih:</span>
+                        <span className={`font-medium ${trendValue >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {trendValue >= 0 ? '+' : ''}{trendValue.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="pt-2 border-t space-y-1">
+                        <p className="text-sm text-muted-foreground">
+                          <span className="font-medium text-foreground">{stats.count}</span> employees
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Avg Performance: <span className="font-medium text-foreground">{latestNum.toFixed(1)}%</span>
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              }).filter(Boolean) // Remove null entries
+            )}
           </div>
 
           {/* Department KPI Chart */}
@@ -771,18 +1080,38 @@ export const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="h-96 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={getFilteredData()}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                    <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} label={{ value: 'KPI (%)', angle: -90, position: 'insideLeft' }} />
-                    <Tooltip formatter={(value, name) => [`${value}%`, name]} labelFormatter={(label) => `Month: ${label}`} />
-                    <Legend />
-                    {getDepartmentsToRender().map((dept) => (
-                      <Line key={dept} type="monotone" dataKey={dept} stroke={departmentColors[dept] || '#333'} strokeWidth={3} dot={{ fill: departmentColors[dept] || '#333', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
+                {loadingKpi ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                      <p className="text-sm text-muted-foreground">Loading chart data...</p>
+                    </div>
+                  </div>
+                ) : getFilteredData().length === 0 ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <p className="text-lg font-medium text-muted-foreground mb-2">No chart data available</p>
+                      <p className="text-sm text-muted-foreground">Check if KPI data is loaded from backend API</p>
+                      <p className="text-xs text-muted-foreground mt-2">KPI Records: {kpiBulanan.length} | Departments: {departments.length}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={getFilteredData()}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                      <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} label={{ value: 'KPI (%)', angle: -90, position: 'insideLeft' }} />
+                      <Tooltip 
+                        formatter={(value, name) => [`KPI Final: ${Math.round(Number(value)) || 0}%`, `${name} Dept`]} 
+                        labelFormatter={(label) => `Bulan: ${label}`} 
+                      />
+                      <Legend />
+                      {getDepartmentsToRender().map((dept) => (
+                        <Line key={dept} type="monotone" dataKey={dept} stroke={departmentColors[dept] || '#333'} strokeWidth={3} dot={{ fill: departmentColors[dept] || '#333', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -845,92 +1174,92 @@ export const Dashboard = () => {
                   </div>
                 </div>
               ) : (
-              <>
-              <div className="overflow-x-auto relative">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="sticky left-0 bg-background z-20 border-r font-semibold min-w-[120px] shadow-sm">Employee</TableHead>
-                      {days.map((dayInfo) => (
-                        <TableHead key={dayInfo.day} className={`text-center min-w-[40px] text-xs ${dayInfo.isWeekend ? 'bg-muted/50 text-muted-foreground' : ''}`}>
-                          <div className="flex flex-col">
-                            <span>{dayInfo.day}</span>
-                            <span className="text-xs">{dayInfo.dayName}</span>
-                          </div>
-                        </TableHead>
-                      ))}
-                      <TableHead className="sticky right-[200px] bg-background z-20 text-center font-semibold border-l shadow-sm min-w-[60px]">Present</TableHead>
-                      <TableHead className="sticky right-[140px] bg-background z-20 text-center font-semibold shadow-sm min-w-[60px]">Late</TableHead>
-                      <TableHead className="sticky right-[80px] bg-background z-20 text-center font-semibold shadow-sm min-w-[60px]">Absent</TableHead>
-                      <TableHead className="sticky right-0 bg-background z-20 text-center font-semibold shadow-sm min-w-[80px]">Rate %</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {attendanceData.map((employee) => (
-                      <TableRow key={employee.id}>
-                        <TableCell className="sticky left-0 bg-background z-20 border-r font-medium shadow-sm">
-                          {employee.name}
-                        </TableCell>
-                        {days.map((dayInfo) => {
-                          const status = employee[`day${dayInfo.day}` as keyof typeof employee] as string;
-                          return (
-                            <TableCell key={dayInfo.day} className={`text-center text-sm ${dayInfo.isWeekend ? 'bg-muted/30' : ''}`}>
-                              <span className={`
-                                inline-block w-6 h-6 rounded text-xs leading-6 font-medium
-                                ${status === '✓' ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300' : 
-                                  status === 'L' ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300' : 
-                                  status === 'X' ? 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300' : 
-                                  'text-muted-foreground'}
-                              `}>
-                                {status}
-                              </span>
+                <>
+                  <div className="overflow-x-auto relative">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="sticky left-0 bg-background z-20 border-r font-semibold min-w-[120px] shadow-sm">Employee</TableHead>
+                          {days.map((dayInfo) => (
+                            <TableHead key={dayInfo.day} className={`text-center min-w-[40px] text-xs ${dayInfo.isWeekend ? 'bg-muted/50 text-muted-foreground' : ''}`}>
+                              <div className="flex flex-col">
+                                <span>{dayInfo.day}</span>
+                                <span className="text-xs">{dayInfo.dayName}</span>
+                              </div>
+                            </TableHead>
+                          ))}
+                          <TableHead className="sticky right-[200px] bg-background z-20 text-center font-semibold border-l shadow-sm min-w-[60px]">Present</TableHead>
+                          <TableHead className="sticky right-[140px] bg-background z-20 text-center font-semibold shadow-sm min-w-[60px]">Late</TableHead>
+                          <TableHead className="sticky right-[80px] bg-background z-20 text-center font-semibold shadow-sm min-w-[60px]">Absent</TableHead>
+                          <TableHead className="sticky right-0 bg-background z-20 text-center font-semibold shadow-sm min-w-[80px]">Rate %</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {attendanceData.map((employee) => (
+                          <TableRow key={employee.id}>
+                            <TableCell className="sticky left-0 bg-background z-20 border-r font-medium shadow-sm">
+                              {employee.name}
                             </TableCell>
-                          );
-                        })}
-                        <TableCell className="sticky right-[200px] bg-background z-20 text-center font-medium border-l text-green-700 dark:text-green-400 shadow-sm">
-                          {employee.presentDays}
-                        </TableCell>
-                        <TableCell className="sticky right-[140px] bg-background z-20 text-center font-medium text-yellow-700 dark:text-yellow-400 shadow-sm">
-                          {employee.lateDays}
-                        </TableCell>
-                        <TableCell className="sticky right-[80px] bg-background z-20 text-center font-medium text-red-700 dark:text-red-400 shadow-sm">
-                          {employee.absentDays}
-                        </TableCell>
-                        <TableCell className="sticky right-0 bg-background z-20 text-center font-medium shadow-sm">
-                          <Badge variant="outline" className={employee.attendanceRate >= 95 ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300 border-green-200 dark:border-green-800' : employee.attendanceRate >= 85 ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800' : employee.attendanceRate >= 75 ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800' : 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800'}>
-                            {employee.attendanceRate}%
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-              
-              {/* Legend */}
-              <div className="mt-4 flex flex-wrap gap-4 text-sm text-foreground">
-                <div className="flex items-center gap-2">
-                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300 text-center">✓</span>
-                  <span>Present</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300 text-center">L</span>
-                  <span>Late</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300 text-center">X</span>
-                  <span>Absent</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium text-muted-foreground text-center">-</span>
-                  <span>Weekend/Holiday</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 text-center">I</span>
-                  <span>Izin/Sakit</span>
-                </div>
-              </div>
-              </>
+                            {days.map((dayInfo) => {
+                              const status = employee[`day${dayInfo.day}` as keyof typeof employee] as string;
+                              return (
+                                <TableCell key={dayInfo.day} className={`text-center text-sm ${dayInfo.isWeekend ? 'bg-muted/30' : ''}`}>
+                                  <span className={`
+                                    inline-block w-6 h-6 rounded text-xs leading-6 font-medium
+                                    ${status === '✓' ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300' :
+                                      status === 'L' ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300' :
+                                      status === 'X' ? 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300' :
+                                      'text-muted-foreground'}
+                                  `}>
+                                    {status}
+                                  </span>
+                                </TableCell>
+                              );
+                            })}
+                            <TableCell className="sticky right-[200px] bg-background z-20 text-center font-medium border-l text-green-700 dark:text-green-400 shadow-sm">
+                              {employee.presentDays}
+                            </TableCell>
+                            <TableCell className="sticky right-[140px] bg-background z-20 text-center font-medium text-yellow-700 dark:text-yellow-400 shadow-sm">
+                              {employee.lateDays}
+                            </TableCell>
+                            <TableCell className="sticky right-[80px] bg-background z-20 text-center font-medium text-red-700 dark:text-red-400 shadow-sm">
+                              {employee.absentDays}
+                            </TableCell>
+                            <TableCell className="sticky right-0 bg-background z-20 text-center font-medium shadow-sm">
+                              <Badge variant="outline" className={employee.attendanceRate >= 95 ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300 border-green-200 dark:border-green-800' : employee.attendanceRate >= 85 ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800' : employee.attendanceRate >= 75 ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800' : 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800'}>
+                                {employee.attendanceRate}%
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {/* Legend */}
+                  <div className="mt-4 flex flex-wrap gap-4 text-sm text-foreground">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300 text-center">✓</span>
+                      <span>Present</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300 text-center">L</span>
+                      <span>Late</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300 text-center">X</span>
+                      <span>Absent</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium text-muted-foreground text-center">-</span>
+                      <span>Weekend/Holiday</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-block w-6 h-6 rounded text-xs leading-6 font-medium bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 text-center">I</span>
+                      <span>Izin/Sakit</span>
+                    </div>
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
@@ -972,12 +1301,15 @@ export const Dashboard = () => {
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <CardTitle>Top 5 Performers - {selectedEmployeeDepartment} Department</CardTitle>
+                  <CardTitle>Top 5 Performers - {selectedEmployeeDepartment === 'Semua Departemen' ? 'All Departments' : `${selectedEmployeeDepartment} Department`}</CardTitle>
                   <CardDescription>Top performing employees based on KPI bulanan (Score Kehadiran & Score Pelatihan)</CardDescription>
                 </div>
                 <Select value={selectedEmployeeDepartment} onValueChange={setSelectedEmployeeDepartment}>
                   <SelectTrigger className="w-48"><SelectValue placeholder="Select Department" /></SelectTrigger>
-                  <SelectContent>{departments.map((dept) => <SelectItem key={dept} value={dept}>{dept}</SelectItem>)}</SelectContent>
+                  <SelectContent>
+                    <SelectItem value="Semua Departemen">Semua Departemen</SelectItem>
+                    {departments.map((dept) => <SelectItem key={dept} value={dept}>{dept}</SelectItem>)}
+                  </SelectContent>
                 </Select>
               </div>
             </CardHeader>
@@ -996,6 +1328,7 @@ export const Dashboard = () => {
                       <TableHead>Rank</TableHead>
                       <TableHead>Employee</TableHead>
                       <TableHead>Position</TableHead>
+                      {selectedEmployeeDepartment === 'Semua Departemen' && <TableHead>Department</TableHead>}
                       <TableHead>KPI Final</TableHead>
                       <TableHead>Score Pelatihan</TableHead>
                       <TableHead>Score Kehadiran</TableHead>
@@ -1006,53 +1339,56 @@ export const Dashboard = () => {
                     {getEmployeesWithKPIBulanan(selectedEmployeeDepartment)
                       .slice(0, 5)
                       .map((employee: any, index: number) => (
-                    <TableRow key={employee.id}>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          <span className={`
-                            px-2 py-1 rounded-full text-xs font-bold
-                            ${index === 0 ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300' : 
-                              index === 1 ? 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300' : 
-                              index === 2 ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-300' : 
-                              'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300'}
-                          `}>#{index + 1}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-medium">{employee.nama || employee.name}</TableCell>
-                      <TableCell>{employee.jabatan?.[0]?.nama || employee.position}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 max-w-[100px]">
-                            <div className="bg-blue-500 dark:bg-blue-400 h-2 rounded-full transition-all duration-300" style={{ width: `${employee.kpiFinal || 0}%` }} />
-                          </div>
-                          <span className="text-sm min-w-[35px]">{employee.kpiFinal || 0}%</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 max-w-[100px]">
-                            <div className="bg-green-500 dark:bg-green-400 h-2 rounded-full transition-all duration-300" style={{ width: `${employee.scorePelatihan || 0}%` }} />
-                          </div>
-                          <span className="text-sm min-w-[35px]">{employee.scorePelatihan || 0}%</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 max-w-[100px]">
-                            <div className="bg-yellow-500 dark:bg-yellow-400 h-2 rounded-full transition-all duration-300" style={{ width: `${employee.scoreKehadiran || 0}%` }} />
-                          </div>
-                          <span className="text-sm min-w-[35px]">{employee.scoreKehadiran || 0}%</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={ratingColors[employee.rating || 'Average']}>
-                          {employee.rating || 'Average'}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                        <TableRow key={employee.id}>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              <span className={`
+                                px-2 py-1 rounded-full text-xs font-bold
+                                ${index === 0 ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300' :
+                                  index === 1 ? 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300' :
+                                    index === 2 ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-300' :
+                                      'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300'}
+                              `}>#{index + 1}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-medium">{employee.nama || employee.name}</TableCell>
+                          <TableCell>{employee.jabatan?.[0]?.nama || employee.position}</TableCell>
+                          {selectedEmployeeDepartment === 'Semua Departemen' && (
+                            <TableCell>{employee.departemenNama || employee.departemen?.[0]?.nama || 'Unknown'}</TableCell>
+                          )}
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 max-w-[100px]">
+                                <div className="bg-blue-500 dark:bg-blue-400 h-2 rounded-full transition-all duration-300" style={{ width: `${employee.kpiFinal || 0}%` }} />
+                              </div>
+                              <span className="text-sm min-w-[35px]">{(employee.kpiFinal || 0).toFixed(1)}%</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 max-w-[100px]">
+                                <div className="bg-green-500 dark:bg-green-400 h-2 rounded-full transition-all duration-300" style={{ width: `${employee.scorePelatihan || 0}%` }} />
+                              </div>
+                              <span className="text-sm min-w-[35px]">{(employee.scorePelatihan || 0).toFixed(1)}%</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 max-w-[100px]">
+                                <div className="bg-yellow-500 dark:bg-yellow-400 h-2 rounded-full transition-all duration-300" style={{ width: `${employee.scoreKehadiran || 0}%` }} />
+                              </div>
+                              <span className="text-sm min-w-[35px]">{(employee.scoreKehadiran || 0).toFixed(1)}%</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={ratingColors[employee.rating || 'Average']}>
+                              {employee.rating || 'Average'}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
               )}
             </CardContent>
           </Card>
@@ -1061,3 +1397,5 @@ export const Dashboard = () => {
     </div>
   );
 };
+
+export default Dashboard;

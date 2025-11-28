@@ -294,6 +294,11 @@ export const kpiAPI = {
     return response.data;
   },
 
+  getBulanan: async (params?: { bulan?: string; departemenId?: string; year?: number }): Promise<any> => {
+    const response = await api.get('/api/kpi/bulanan', { params });
+    return response.data;
+  },
+
   // KPI Detail endpoints
   addDetail: async (kpiId: string, data: KpiDetailCreateRequest): Promise<KpiDetailSingleResponse> => {
     const response = await api.post<KpiDetailSingleResponse>(`/api/kpi/kpi/${kpiId}/details`, data);
@@ -542,3 +547,4 @@ export const izinAPI = {
     return response.data;
   },
 };
+
