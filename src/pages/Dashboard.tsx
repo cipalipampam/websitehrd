@@ -29,6 +29,13 @@ import {
 } from '../components/ui/table';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
 import { Checkbox } from '../components/ui/checkbox';
 import {
   DropdownMenu,
@@ -45,6 +52,20 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
+import {
+  Building2,
+  Calculator,
+  DollarSign,
+  Laptop,
+  Users,
+  Briefcase,
+  Heart,
+  Wrench,
+  BookOpen,
+  Shield,
+  Truck,
+  Phone
+} from 'lucide-react';
 
 const departmentColors: Record<string, string> = {
   Analytics: '#8884d8',
@@ -62,6 +83,26 @@ const ratingColors: Record<string, string> = {
   Good: 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800',
   Average: 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800',
   Poor: 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800',
+};
+
+const getDepartmentIcon = (departmentName: string) => {
+  const name = departmentName.toLowerCase();
+  
+  if (name.includes('analytic') || name.includes('data')) return Calculator;
+  if (name.includes('finance') || name.includes('keuangan')) return DollarSign;
+  if (name.includes('technology') || name.includes('it') || name.includes('teknologi')) return Laptop;
+  if (name.includes('hr') || name.includes('human') || name.includes('sdm')) return Users;
+  if (name.includes('marketing') || name.includes('pemasaran')) return Briefcase;
+  if (name.includes('operation') || name.includes('operasi')) return Wrench;
+  if (name.includes('legal') || name.includes('hukum')) return Shield;
+  if (name.includes('sales') || name.includes('penjualan')) return Phone;
+  if (name.includes('support') || name.includes('dukungan')) return Heart;
+  if (name.includes('research') || name.includes('riset') || name.includes('r&d')) return BookOpen;
+  if (name.includes('production') || name.includes('produksi')) return Building2;
+  if (name.includes('logistic') || name.includes('logistik')) return Truck;
+  if (name.includes('procurement')) return Briefcase;
+  
+  return Building2; // Default icon
 };
 
 // Trend Icon Component
@@ -113,11 +154,16 @@ export const Dashboard = () => {
   const [karyawan, setKaryawan] = useState<any[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<Kehadiran[]>([]);
   const [kpiBulanan, setKpiBulanan] = useState<any[]>([]);
+  const [kpiKaryawan, setKpiKaryawan] = useState<any[]>([]); // Employee KPI data from karyawan endpoint
 
   // Loading/error states
   const [loadingAttendance, setLoadingAttendance] = useState(false);
   const [errorAttendance, setErrorAttendance] = useState<string | null>(null);
   const [loadingKpi, setLoadingKpi] = useState(false);
+  
+  // KPI Detail Popup states
+  const [showKpiDetailPopup, setShowKpiDetailPopup] = useState(false);
+  const [selectedDepartmentForDetail, setSelectedDepartmentForDetail] = useState<string>('');
 
   // Debug logging
   console.log('=== DASHBOARD STATE DEBUG ===');
@@ -129,6 +175,7 @@ export const Dashboard = () => {
     loadingAttendance
   });
   console.log('KPI Bulanan Raw Data:', kpiBulanan);
+  console.log('KPI Karyawan Raw Data:', kpiKaryawan);
   console.log('Departments Array:', departments);
   console.log('Selected Departments:', selectedDepartments);
   console.log('================================');
@@ -199,7 +246,7 @@ export const Dashboard = () => {
         console.log('=== API CALL START ===');
         console.log('Calling kpiAPI.getBulanan()...');
         
-        // Test API availability first
+        // Call the correct KPI bulanan endpoint
         const res = await kpiAPI.getBulanan();
         
         console.log('=== API RESPONSE RECEIVED ===');
@@ -210,20 +257,39 @@ export const Dashboard = () => {
         console.log('Response type:', typeof res);
         console.log('========================');
         
-        // Try different response structures
+        // Handle response from kpiAPI.getBulanan() - should return data directly
         let raw = null;
-        if (res?.data) {
+        
+        // Since we're using kpiAPI.getBulanan(), the response should be the data directly
+        if (Array.isArray(res)) {
+          raw = res;
+          console.log('Response is direct array from kpiAPI.getBulanan()');
+        } else if (res?.data && Array.isArray(res.data)) {
           raw = res.data;
-          console.log('Using res.data');
-        } else if (Array.isArray(res)) {
-          raw = res;
-          console.log('Response is direct array');
-        } else if (res?.result || res?.results) {
-          raw = res.result || res.results;
-          console.log('Using res.result/results');
+          console.log('Using res.data array');
+        } else if (res?.result && Array.isArray(res.result)) {
+          raw = res.result;
+          console.log('Using res.result array');
+        } else if (res?.results && Array.isArray(res.results)) {
+          raw = res.results;
+          console.log('Using res.results array');
         } else {
-          raw = res;
-          console.log('Using raw response');
+          // Try to find any array property in the response
+          const responseKeys = Object.keys(res || {});
+          console.log('Available response keys:', responseKeys);
+          
+          for (const key of responseKeys) {
+            if (Array.isArray(res[key])) {
+              raw = res[key];
+              console.log(`Found array data in response[${key}]`);
+              break;
+            }
+          }
+          
+          if (!raw) {
+            raw = res;
+            console.log('Using raw response as fallback');
+          }
         }
         
         console.log('Extracted raw data:', raw);
@@ -262,22 +328,35 @@ export const Dashboard = () => {
         }
         
         console.log('Processing array with length:', raw.length);
+        console.log('Sample items from raw data:', raw.slice(0, 3));
         
-        // Process KPI data with proper parameter structure
+        // Process KPI data with new response structure
         const clean = (raw || []).map((x: any, index: number) => {
           console.log(`Processing item ${index}:`, x);
+          console.log(`Item keys:`, Object.keys(x));
           
           const processed = {
-            departemenId: x.departemenId || x.id || `dept-${index}`,
-            departemen: x.departemen || x.department || x.nama || 'Unknown',
-            bulan: x.bulan || x.month || x.periode || '2025-11',
-            scorePresensi: Number(x.scorePresensi || x.attendance_score || x.presensi || 0),
-            scorePelatihan: Number(x.scorePelatihan || x.training_score || x.pelatihan || 0),
+            // Use new response format fields
+            departemenId: x.departemenId || x.id || `dept-${index}`, // "8a5d74a6-9593-479a-8460-ea3e5d78c991"
+            departemen: x.departemen || x.department || x.nama || 'Unknown', // "Analytics"
+            bulan: x.bulan || x.month || x.periode || '2025-11', // "2025-11"
+            kpiFinalDepartemen: Number(x.kpiFinalDepartemen || 0), // 49.35 - Primary KPI value
+            // Keep existing fields for backward compatibility
+            scorePresensi: Number(x.scorePresensi || x.avgScorePresensi || x.attendance_score || x.presensi || 0),
+            scorePelatihan: Number(x.scorePelatihan || x.avgScorePelatihan || x.training_score || x.pelatihan || 0),
             bobotPresensi: Number(x.bobotPresensi || x.attendance_weight || 60),
             bobotPelatihan: Number(x.bobotPelatihan || x.training_weight || 40),
-            totalBobotIndikatorLain: Number(x.totalBobotIndikatorLain || 0),
-            totalScoreIndikatorLain: Number(x.totalScoreIndikatorLain || 0),
-            kpiFinal: Number(x.kpiFinal || x.finalKPI || x.kpi || x.score || 0)
+            totalBobotIndikatorLain: Number(x.totalBobotIndikatorLain || x.avgIndicatorBobot || 0),
+            totalScoreIndikatorLain: Number(x.totalScoreIndikatorLain || x.avgIndicatorScore || 0),
+            kpiFinal: Number(x.kpiFinal || x.kpiFinalDepartemen || x.finalKPI || x.kpi || x.score || 0),
+            // Additional fields from response
+            avgScorePresensi: Number(x.avgScorePresensi || x.scorePresensi || 0),
+            avgScorePelatihan: Number(x.avgScorePelatihan || x.scorePelatihan || 0),
+            avgIndicatorScore: Number(x.avgIndicatorScore || 0),
+            avgIndicatorBobot: Number(x.avgIndicatorBobot || 0),
+            // Employee info jika tersedia
+            karyawanId: x.karyawanId || x.employeeId || x.emp_id || null,
+            namaKaryawan: x.namaKaryawan || x.employeeName || x.nama || null
           };
           
           console.log(`Processed item ${index}:`, processed);
@@ -286,7 +365,28 @@ export const Dashboard = () => {
         
         console.log('=== FINAL PROCESSING RESULT ===');
         console.log('Final cleaned data length:', clean.length);
-        console.log('Final cleaned data:', clean);
+        console.log('Sample processed data:', clean.slice(0, 3));
+        console.log('Data structure check:');
+        clean.forEach((item, i) => {
+          if (i < 5) { // Log first 5 items
+            console.log(`Item ${i}:`, {
+              departemenId: item.departemenId,
+              departemen: item.departemen,
+              bulan: item.bulan,
+              karyawanId: item.karyawanId,
+              namaKaryawan: item.namaKaryawan,
+              kpiFinal: item.kpiFinal,
+              kpiFinalDepartemen: item.kpiFinalDepartemen
+            });
+          }
+        });
+        console.log('Departments in data:', [...new Set(clean.map(x => x.departemen))]);
+        console.log('Months in data:', [...new Set(clean.map(x => x.bulan))]);
+        console.log('Items with karyawanId:', clean.filter(x => x.karyawanId).length);
+        console.log('Items with namaKaryawan:', clean.filter(x => x.namaKaryawan).length);
+        console.log('Available months in data:', [...new Set(clean.map(x => x.bulan))].sort());
+        console.log('Target month (November 2025):', '2025-11');
+        console.log('Current system date:', new Date().toISOString().slice(0, 7));
         console.log('==============================');
         
         setKpiBulanan(clean);
@@ -335,9 +435,50 @@ export const Dashboard = () => {
       }
     };
 
+    // load employee KPI data from karyawan endpoint
+    const loadKpiKaryawan = async () => {
+      try {
+        console.log('=== LOADING EMPLOYEE KPI DATA ===');
+        console.log('Calling karyawanAPI.getKpiBulanan() for employees...');
+        
+        const res = await karyawanAPI.getKpiBulanan();
+        console.log('Employee KPI API Response:', res);
+        
+        // Handle response for employee KPI
+        let employeeData = null;
+        if (Array.isArray(res)) {
+          employeeData = res;
+        } else if (res?.data && Array.isArray(res.data)) {
+          employeeData = res.data;
+        } else {
+          employeeData = res;
+        }
+        
+        if (!employeeData || !Array.isArray(employeeData)) {
+          console.log('No valid employee KPI data found');
+          setKpiKaryawan([]);
+          return;
+        }
+        
+        // Filter only records with karyawanId (individual employees)
+        const employeeKpiRecords = employeeData.filter((item: any) => 
+          item.karyawanId && item.namaKaryawan
+        );
+        
+        console.log('Employee KPI records found:', employeeKpiRecords.length);
+        console.log('Sample employee KPI data:', employeeKpiRecords.slice(0, 3));
+        setKpiKaryawan(employeeKpiRecords);
+        
+      } catch (err) {
+        console.error('Failed to load employee KPI data:', err);
+        setKpiKaryawan([]);
+      }
+    };
+
     loadDepartments();
     loadKaryawan();
     loadKpi();
+    loadKpiKaryawan();
   }, [fetchUser]);
 
   // Fetch attendance data when filters change
@@ -433,15 +574,15 @@ export const Dashboard = () => {
     }
 
     kpiBulanan.forEach((item: any) => {
-      // Extract parameters from backend data structure
-      const bulanParam = item.bulan; // X-axis: "2025-10" format
-      const departemenName = item.departemen; // Department name for grouping
-      const departemenId = item.departemenId; // Unique department identifier
-      const kpiValue = Number(item.kpiFinal) || 0; // Y-axis: KPI performance value
+      // Extract parameters from new response structure
+      const bulanParam = item.bulan; // X-axis: "2025-11" format
+      const departemenName = item.departemen; // Department name: "Analytics"
+      const departemenId = item.departemenId; // Department ID: "8a5d74a6-9593-479a-8460-ea3e5d78c991"
+      const kpiValue = Number(item.kpiFinalDepartemen) || 0; // Y-axis: KPI value from kpiFinalDepartemen: 49.35
       
       if (!bulanParam || !departemenName) return;
       
-      // Format month for display (2025-10 -> Oct 2025)
+      // Format month for display (2025-11 -> Nov 2025)
       const [year, month] = bulanParam.split('-');
       const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
       const displayMonth = `${monthNames[parseInt(month, 10) - 1]} ${year}`;
@@ -454,9 +595,9 @@ export const Dashboard = () => {
         };
       }
       
-      // Map department KPI values for line chart
+      // Map department KPI values for line chart using kpiFinalDepartemen
       grouped[bulanParam][departemenName] = kpiValue;
-      console.log(`Chart Data - Bulan: ${bulanParam}, Display: ${displayMonth}, Dept: ${departemenName} (${departemenId}), KPI: ${kpiValue}`);
+      console.log(`Chart Data - Bulan: ${bulanParam}, Display: ${displayMonth}, Dept: ${departemenName} (ID: ${departemenId}), KPI Final Departemen: ${kpiValue}`);
     });
 
       // Sort by month variable and keep as parameter
@@ -509,9 +650,9 @@ export const Dashboard = () => {
 
   const getDepartmentsToRender = () => selectedDepartments;
 
-  // Department KPI cards - compare bulan ini vs bulan lalu using departemenId
+  // Department KPI cards - compare bulan ini (Nov 2025) vs bulan lalu (Oct 2025) using KPI-bulanan response
   const getDeptKpi = (dept: string) => {
-    // Filter by departemen name to get departemenId data
+    // Filter by departemen name to get departemen data from KPI-bulanan
     const deptData = (kpiBulanan || []).filter((x: any) => x.departemen === dept);
     
     // If no data found, return null to indicate no data available
@@ -520,32 +661,45 @@ export const Dashboard = () => {
       return null;
     }
 
-    // Sort by bulan ascending to get proper month comparison
-    const sorted = [...deptData].sort((a: any, b: any) => (a.bulan > b.bulan ? 1 : -1));
+    // Define target months: November 2025 (current) and October 2025 (previous)
+    const currentMonth = '2025-11'; // November 2025 (bulan saat ini)
+    const previousMonth = '2025-10'; // October 2025 (bulan saat ini - 1)
     
-    // Get bulan ini (current/latest) and bulan lalu (previous)
-    const currentMonthData = sorted[sorted.length - 1]; // bulan ini
-    const previousMonthData = sorted[sorted.length - 2]; // bulan lalu
-    
-    // Extract KPI parameters from backend data structure
-    const currentKPI = Number(currentMonthData?.kpiFinal) || 0;
-    const previousKPI = Number(previousMonthData?.kpiFinal) || 0;
-    const departemenId = currentMonthData?.departemenId;
-    const currentScorePresensi = Number(currentMonthData?.scorePresensi) || 0;
-    const currentScorePelatihan = Number(currentMonthData?.scorePelatihan) || 0;
-    const bobotPresensi = Number(currentMonthData?.bobotPresensi) || 0;
-    const bobotPelatihan = Number(currentMonthData?.bobotPelatihan) || 0;
+    // Get specific month data using the new response format
+    const currentMonthData = deptData.find((x: any) => x.bulan === currentMonth);
+    const previousMonthData = deptData.find((x: any) => x.bulan === previousMonth);
     
     console.log(`Dept KPI Analysis - ${dept}:`, {
+      targetCurrentMonth: currentMonth,
+      targetPreviousMonth: previousMonth,
+      foundCurrentData: currentMonthData,
+      foundPreviousData: previousMonthData,
+      availableMonths: deptData.map(x => x.bulan).sort(),
+      currentKpiFinalDepartemen: currentMonthData?.kpiFinalDepartemen,
+      previousKpiFinalDepartemen: previousMonthData?.kpiFinalDepartemen,
+      currentDepartemenId: currentMonthData?.departemenId,
+      previousDepartemenId: previousMonthData?.departemenId
+    });
+    
+    // Extract KPI Final Departemen using the new response format
+    const currentKPI = currentMonthData && currentMonthData.kpiFinalDepartemen !== undefined 
+      ? Number(currentMonthData.kpiFinalDepartemen) : null;
+    const previousKPI = previousMonthData && previousMonthData.kpiFinalDepartemen !== undefined 
+      ? Number(previousMonthData.kpiFinalDepartemen) : null;
+    const departemenId = currentMonthData?.departemenId || previousMonthData?.departemenId;
+    const currentScorePresensi = currentMonthData ? Number(currentMonthData.scorePresensi) || 0 : 0;
+    const currentScorePelatihan = currentMonthData ? Number(currentMonthData.scorePelatihan) || 0 : 0;
+    const bobotPresensi = currentMonthData ? Number(currentMonthData.bobotPresensi) || 0 : 0;
+    const bobotPelatihan = currentMonthData ? Number(currentMonthData.bobotPelatihan) || 0 : 0;
+    
+    console.log(`Final KPI Values for ${dept}:`, {
       departemenId,
-      currentMonth: currentMonthData?.bulan,
-      previousMonth: previousMonthData?.bulan,
-      kpiCurrent: currentKPI,
-      kpiPrevious: previousKPI,
-      kpiChange: currentKPI - previousKPI,
-      scorePresensi: currentScorePresensi,
-      scorePelatihan: currentScorePelatihan,
-      bobot: { presensi: bobotPresensi, pelatihan: bobotPelatihan }
+      bulanIni: currentMonth,
+      bulanLalu: previousMonth,
+      kpiFinalDepartemenIni: currentKPI,
+      kpiFinalDepartemenLalu: previousKPI,
+      selisih: currentKPI !== null && previousKPI !== null ? currentKPI - previousKPI : null,
+      dataSource: 'kpiFinalDepartemen field from new API response format'
     });
     
     // Format month names for display
@@ -557,139 +711,209 @@ export const Dashboard = () => {
     };
     
     return { 
-      latest: currentKPI,
-      prev: previousKPI,
-      currentMonth: formatMonth(currentMonthData?.bulan),
-      previousMonth: formatMonth(previousMonthData?.bulan),
+      latest: currentKPI, // kpiFinalDepartemen from November 2025 record
+      prev: previousKPI,  // kpiFinalDepartemen from October 2025 record
+      currentMonth: formatMonth(currentMonth), // Nov 2025
+      previousMonth: formatMonth(previousMonth), // Oct 2025
       departemenId,
       scorePresensi: currentScorePresensi,
       scorePelatihan: currentScorePelatihan,
       bobotPresensi,
-      bobotPelatihan
+      bobotPelatihan,
+      // Tambahan info untuk debugging
+      hasCurrentData: currentMonthData !== undefined,
+      hasPreviousData: previousMonthData !== undefined
     };
   };
 
-  // Cards and KPI stats
+  // Cards and KPI stats - 12 month average calculation
   const calculateAverageKPI = () => {
-    if (!kpiBulanan || kpiBulanan.length === 0) return 0;
-    // Calculate average from all department KPI finals
-    const totalKPI = kpiBulanan.reduce((sum: number, item: any) => {
-      return sum + (Number(item.kpiFinal) || 0);
-    }, 0);
-    const average = totalKPI / kpiBulanan.length;
-    console.log('Average KPI Calculation:', { totalRecords: kpiBulanan.length, totalKPI, average });
-    return Math.round(average);
+    if (!kpiBulanan || kpiBulanan.length === 0) {
+      console.log('No KPI bulanan data available for 12-month average calculation');
+      return 0;
+    }
+    
+    console.log('=== 12-MONTH KPI CALCULATION START ===');
+    console.log('Total KPI records available:', kpiBulanan.length);
+    console.log('Sample data:', kpiBulanan.slice(0, 3));
+    
+    // Group by exact year-month (YYYY-MM) to maintain chronological order
+    const monthlyData: Record<string, number[]> = {};
+    
+    kpiBulanan.forEach((item: any) => {
+      const bulanParam = item.bulan; // Format: "2025-11", "2025-10", etc.
+      const kpiValue = Number(item.kpiFinalDepartemen) || 0;
+      
+      if (!bulanParam) return;
+      
+      // Validate year-month format
+      if (!bulanParam.match(/^\d{4}-\d{2}$/)) {
+        console.log(`Invalid date format: ${bulanParam}`);
+        return;
+      }
+      
+      // Group by exact year-month (e.g., "2025-11", "2025-10")
+      if (!monthlyData[bulanParam]) {
+        monthlyData[bulanParam] = [];
+      }
+      
+      monthlyData[bulanParam].push(kpiValue);
+      console.log(`Adding KPI: ${bulanParam}, Department: ${item.departemen}, KPI: ${kpiValue}`);
+    });
+    
+    console.log('Monthly KPI data grouped by year-month:', monthlyData);
+    
+    // Calculate monthly averages for each specific month-year
+    const monthlyAverages: Record<string, number> = {};
+    Object.keys(monthlyData).forEach(yearMonth => {
+      const monthKPIs = monthlyData[yearMonth];
+      if (monthKPIs.length > 0) {
+        const monthTotal = monthKPIs.reduce((sum, kpi) => sum + kpi, 0);
+        const monthAverage = monthTotal / monthKPIs.length;
+        monthlyAverages[yearMonth] = monthAverage;
+        console.log(`${yearMonth}: ${monthKPIs.length} departments, Total: ${monthTotal.toFixed(2)}, Average: ${monthAverage.toFixed(2)}%`);
+      }
+    });
+    
+    // Sort months chronologically and get available data
+    const availableMonths = Object.keys(monthlyAverages).sort((a, b) => a.localeCompare(b));
+    console.log('Available months chronologically:', availableMonths);
+    
+    // Take last 12 months or all available if less than 12
+    const last12Months = availableMonths.slice(-12);
+    console.log(`Using last ${last12Months.length} months for 12-month average:`, last12Months);
+    
+    if (last12Months.length === 0) {
+      console.log('No valid monthly data found');
+      return 0;
+    }
+    
+    // Calculate overall average from available months
+    const monthlyValues = last12Months.map(month => monthlyAverages[month]);
+    const overallTotal = monthlyValues.reduce((sum, avg) => sum + avg, 0);
+    const overallAverage = overallTotal / monthlyValues.length;
+    
+    console.log('=== 12-MONTH KPI CALCULATION SUMMARY ===');
+    console.log('Months used in calculation:');
+    last12Months.forEach((month, index) => {
+      const deptCount = monthlyData[month]?.length || 0;
+      console.log(`  ${index + 1}. ${month}: ${monthlyAverages[month].toFixed(2)}% (${deptCount} departments)`);
+    });
+    console.log('Total months included:', last12Months.length);
+    console.log('Sum of monthly averages:', overallTotal.toFixed(2));
+    console.log('Final average calculation:', `${overallTotal.toFixed(2)} ÷ ${monthlyValues.length} = ${overallAverage.toFixed(2)}%`);
+    console.log('Final result with 2 decimals:', overallAverage.toFixed(2));
+    console.log('==========================================');
+    
+    return overallAverage;
   };
 
   const getCurrentMonthKPI = () => {
     if (!kpiBulanan || kpiBulanan.length === 0) return 0;
-    // Get latest month data based on bulan parameter
-    const monthsData = [...kpiBulanan].sort((a, b) => (a.bulan > b.bulan ? -1 : 1));
-    const latestMonth = monthsData[0]?.bulan;
-    if (!latestMonth) return 0;
     
-    const currentMonthData = kpiBulanan.filter((item: any) => item.bulan === latestMonth);
+    // Get all available months and find the latest one
+    const allMonths = [...new Set(kpiBulanan.map((item: any) => item.bulan))].sort();
+    const latestMonth = allMonths[allMonths.length - 1];
+    
+    // Use the latest available month as current month
+    let currentMonth = latestMonth || '2025-11'; // Fallback to Nov 2025 if no data
+    let currentMonthData = kpiBulanan.filter((item: any) => item.bulan === currentMonth);
+    
+    console.log(`Using ${currentMonth} as current month for KPI calculation`);
+    console.log('Available months:', allMonths);
+    
+    if (currentMonthData.length === 0) {
+      console.log('No data available for current month calculation');
+      return 0;
+    }
+    
     const monthlyKPI = currentMonthData.reduce((sum: number, item: any) => {
-      return sum + (Number(item.kpiFinal) || 0);
-    }, 0) / (currentMonthData.length || 1);
+      const kpiValue = Number(item.kpiFinalDepartemen) || 0; // Use kpiFinalDepartemen from new format
+      console.log(`Adding KPI value for dept ${item.departemenId} (${item.departemen}, ${item.bulan}):`, kpiValue);
+      return sum + kpiValue;
+    }, 0) / currentMonthData.length;
     
-    console.log('Current Month KPI:', { month: latestMonth, departments: currentMonthData.length, average: monthlyKPI });
-    return Math.round(monthlyKPI);
+    console.log('Current Month KPI:', { month: currentMonth, departments: currentMonthData.length, average: monthlyKPI });
+    return monthlyKPI;
   };
 
   const getTotalEmployees = () => karyawan.length;
 
-  // Helper function to get employees with KPI bulanan scores
+  // Helper function to get employees with actual individual KPI data
   const getEmployeesWithKPIBulanan = (departmentName: string) => {
-    // Handle "Semua Departemen" case
-    if (departmentName === 'Semua Departemen') {
-      // Get all employees from all departments
-      const allEmployees: any[] = [];
-      
-      departments.forEach(dept => {
-        const deptEmployees = (karyawan || []).filter(e =>
-          e.departemen?.some((d: any) => d.nama === dept)
-        );
-        
-        const departmentKPIData = (kpiBulanan || []).filter(item => item.departemen === dept);
-        
-        if (departmentKPIData.length > 0) {
-          const sortedKPIData = [...departmentKPIData].sort((a, b) => (a.bulan > b.bulan ? 1 : -1));
-          const latestKPIData = sortedKPIData[sortedKPIData.length - 1];
-          
-          const deptScorePresensi = Number(latestKPIData?.scorePresensi) || 0;
-          const deptScorePelatihan = Number(latestKPIData?.scorePelatihan) || 0;
-          const deptKpiFinal = Number(latestKPIData?.kpiFinal) || 0;
-          const bobotPresensi = Number(latestKPIData?.bobotPresensi) || 0;
-          const bobotPelatihan = Number(latestKPIData?.bobotPelatihan) || 0;
-          const departemenId = latestKPIData?.departemenId;
-          
-          deptEmployees.forEach(employee => {
-            allEmployees.push({
-              ...employee,
-              scoreKehadiran: deptScorePresensi,
-              scorePelatihan: deptScorePelatihan,
-              kpiFinal: deptKpiFinal,
-              performance: deptKpiFinal,
-              productivity: deptScorePelatihan,
-              attendance: deptScorePresensi,
-              rating: deptKpiFinal >= 90 ? 'Excellent' : deptKpiFinal >= 75 ? 'Good' : deptKpiFinal >= 60 ? 'Average' : 'Poor',
-              departemenId,
-              bobotPresensi,
-              bobotPelatihan,
-              departemenNama: dept // Add department name for display
-            });
-          });
-        }
-      });
-      
-      return allEmployees.sort((a: any, b: any) => (b.kpiFinal || 0) - (a.kpiFinal || 0));
+    console.log('=== getEmployeesWithKPIBulanan CALLED ===');
+    console.log('Department name:', departmentName);
+    console.log('Available kpiKaryawan data:', kpiKaryawan);
+    console.log('Available karyawan data:', karyawan);
+    console.log('==========================================');
+    
+    // Filter employee KPI data by department
+    let filteredKPIData = kpiKaryawan;
+    
+    if (departmentName !== 'Semua Departemen') {
+      filteredKPIData = kpiKaryawan.filter((item: any) => 
+        item.departemen === departmentName
+      );
     }
-
-    const departmentEmployees = (karyawan || []).filter(e =>
-      e.departemen?.some((d: any) => d.nama === departmentName)
+    
+    console.log(`Filtered KPI data for ${departmentName}:`, filteredKPIData.length);
+    
+    // Filter for current month (November 2025)
+    const currentMonth = '2025-11';
+    let currentMonthData = filteredKPIData.filter((item: any) => 
+      item.bulan === currentMonth
     );
-
-    // Get latest month's KPI data for the department
-    const departmentKPIData = (kpiBulanan || []).filter(item => item.departemen === departmentName);
-
-    if (departmentKPIData.length === 0) {
-      // Return empty array if no KPI data - no dummy data
-      return [];
+    
+    // Fallback: if no current month data, use latest available
+    if (currentMonthData.length === 0) {
+      console.log(`No current month data, using latest available...`);
+      const sortedData = [...filteredKPIData].sort((a: any, b: any) => 
+        (b.bulan > a.bulan ? 1 : -1)
+      );
+      const latestMonth = sortedData[0]?.bulan;
+      if (latestMonth) {
+        currentMonthData = filteredKPIData.filter((item: any) => 
+          item.bulan === latestMonth
+        );
+        console.log(`Using latest month ${latestMonth} for employee KPI`);
+      }
     }
-
-    // Get the latest month's data
-    const sortedKPIData = [...departmentKPIData].sort((a, b) => (a.bulan > b.bulan ? 1 : -1));
-    const latestKPIData = sortedKPIData[sortedKPIData.length - 1];
-
-    return departmentEmployees.map((employee: any) => {
-      // Extract KPI parameters from backend data structure  
-      const deptScorePresensi = Number(latestKPIData?.scorePresensi) || 0;
-      const deptScorePelatihan = Number(latestKPIData?.scorePelatihan) || 0;
-      const deptKpiFinal = Number(latestKPIData?.kpiFinal) || 0;
-      const bobotPresensi = Number(latestKPIData?.bobotPresensi) || 0;
-      const bobotPelatihan = Number(latestKPIData?.bobotPelatihan) || 0;
-      const departemenId = latestKPIData?.departemenId;
+    
+    console.log(`Employee KPI data for processing:`, currentMonthData);
+    
+    // Transform KPI data using the response format
+    const employeesWithKPI = currentMonthData.map((kpiData: any) => {
+      // Find matching employee data for additional info
+      const employeeData = karyawan.find(k => k.id === kpiData.karyawanId);
       
-      // Use department baseline values directly - no artificial variation
-      const employeeScoreKehadiran = deptScorePresensi;
-      const employeeScorePelatihan = deptScorePelatihan;
-      const employeeKpiFinal = deptKpiFinal;
-
+      const rating = kpiData.kpiFinal >= 90 ? 'Excellent' : 
+                    kpiData.kpiFinal >= 75 ? 'Good' : 
+                    kpiData.kpiFinal >= 60 ? 'Average' : 'Poor';
+      
       return {
-        ...employee,
-        scoreKehadiran: employeeScoreKehadiran,
-        scorePelatihan: employeeScorePelatihan,
-        kpiFinal: employeeKpiFinal,
-        performance: employeeKpiFinal,
-        productivity: employeeScorePelatihan,
-        attendance: employeeScoreKehadiran,
-        rating: employeeKpiFinal >= 90 ? 'Excellent' : employeeKpiFinal >= 75 ? 'Good' : employeeKpiFinal >= 60 ? 'Average' : 'Poor',
-        departemenId,
-        bobotPresensi,
-        bobotPelatihan
+        id: kpiData.karyawanId, // "b97f9863-e867-4807-bc51-d48e4f82ceaa"
+        nama: kpiData.namaKaryawan, // "Jane Smith"
+        scoreKehadiran: Number(kpiData.scorePresensi) || 0, // 98
+        scorePelatihan: Number(kpiData.scorePelatihan) || 0, // 94
+        kpiFinal: Number(kpiData.kpiFinal) || 0, // 61.68861392832988
+        performance: Number(kpiData.kpiFinal) || 0,
+        productivity: Number(kpiData.scorePelatihan) || 0,
+        attendance: Number(kpiData.scorePresensi) || 0,
+        rating,
+        departemenId: kpiData.departemenId, // "0f08c413-c4ee-46a3-990d-67a78f868729"
+        departemenNama: kpiData.departemen, // "Sales & Marketing"
+        bobotPresensi: Number(kpiData.bobotPresensi) || 0, // 60
+        bobotPelatihan: Number(kpiData.bobotPelatihan) || 0, // 40
+        totalBobotIndikatorLain: Number(kpiData.totalBobotIndikatorLain) || 0, // 44
+        totalScoreIndikatorLain: Number(kpiData.totalScoreIndikatorLain) || 0, // 2679.5876267748445
+        bulan: kpiData.bulan, // "2025-11"
+        jabatan: employeeData?.jabatan || [{ nama: 'Employee' }],
+        position: employeeData?.jabatan?.[0]?.nama || 'Employee'
       };
-    }).sort((a: any, b: any) => (b.kpiFinal || 0) - (a.kpiFinal || 0));
+    });
+    
+    console.log(`Final employees with KPI for ${departmentName}:`, employeesWithKPI.length, employeesWithKPI);
+    return employeesWithKPI.sort((a: any, b: any) => (b.kpiFinal || 0) - (a.kpiFinal || 0));
   };
 
   // ---------- Attendance helpers (kehadiran) ----------
@@ -881,7 +1105,7 @@ export const Dashboard = () => {
                     </div>
                   ) : (
                     <div>
-                      <p className="text-3xl font-bold text-green-600 dark:text-green-400">{calculateAverageKPI()}%</p>
+                      <p className="text-3xl font-bold text-green-600 dark:text-green-400">{calculateAverageKPI().toFixed(2)}%</p>
                       <p className="text-sm text-muted-foreground">12-Month Average ({kpiBulanan.length} records)</p>
                     </div>
                   )}
@@ -906,7 +1130,7 @@ export const Dashboard = () => {
                   </div>
                 ) : (
                   <div>
-                    <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{getCurrentMonthKPI()}%</p>
+                    <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{getCurrentMonthKPI().toFixed(2)}%</p>
                     <p className="text-sm text-muted-foreground">Monthly Average</p>
                   </div>
                 )}
@@ -946,46 +1170,87 @@ export const Dashboard = () => {
                 }
 
                 const { latest, prev, currentMonth, previousMonth, departemenId } = deptKpiData;
-                // Convert kpiFinal variables for comparison: bulan ini vs bulan lalu
-                const latestNum = Number(latest) || 0;  // kpiFinal bulan ini
-                const prevNum = Number(prev) || 0;      // kpiFinal bulan lalu
-                const trend = latestNum > prevNum ? 'up' : latestNum < prevNum ? 'down' : 'stable';
-                const trendValue = latestNum - prevNum; // selisih bulan ini - bulan lalu
+                // Handle null values from KPI-bulanan response - kpiFinalDepartemen
+                const latestNum = latest !== null ? Number(latest) : null;  // kpiFinalDepartemen November 2025
+                const prevNum = prev !== null ? Number(prev) : null;        // kpiFinalDepartemen Oktober 2025
+                
+                console.log(`Rendering ${dept} card:`, {
+                  latestKpiFinalDepartemen: latestNum,
+                  prevKpiFinalDepartemen: prevNum,
+                  currentMonth,
+                  previousMonth
+                });
+                
+                // Calculate trend only if both values exist
+                let trend: 'up' | 'down' | 'stable' = 'stable';
+                let trendValue = 0;
+                if (latestNum !== null && prevNum !== null) {
+                  trend = latestNum > prevNum ? 'up' : latestNum < prevNum ? 'down' : 'stable';
+                  trendValue = latestNum - prevNum;
+                }
                 const stats = { count: (karyawan || []).filter(k => k.departemen?.some((d: any) => d.nama === dept)).length || 0, avgPerformance: 0 };
 
                 return (
                   <Card key={`dept-${dept}`} className="hover:shadow-lg transition-shadow duration-200" data-department-id={departemenId}>
                     <CardHeader>
                       <CardTitle className="flex items-center justify-between">
-                        <span className="text-sm font-semibold">{dept}</span>
+                        <div className="flex items-center gap-2">
+                          <div className="p-2 rounded-full bg-blue-50 dark:bg-blue-900/20">
+                            {(() => {
+                              const IconComponent = getDepartmentIcon(dept);
+                              return <IconComponent className="h-4 w-4 text-blue-600 dark:text-blue-400" />;
+                            })()}
+                          </div>
+                          <span className="text-sm font-semibold">{dept}</span>
+                        </div>
                         <TrendIcon trend={trend} />
                       </CardTitle>
-                      <CardDescription>KPI Final Comparison</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
                       <div>
-                        <p className="text-2xl font-bold text-blue-500">{latestNum.toFixed(1)}%</p>
+                        <p className="text-2xl font-bold text-blue-500">
+                          {latestNum !== null ? `${latestNum.toFixed(2)}%` : '-'}
+                        </p>
                         <p className="text-sm text-muted-foreground">
-                          KPI Final - {currentMonth}
+                          KPI Final Departemen - {currentMonth || 'Nov 2025'}
                         </p>
                       </div>
                       <div className="flex justify-between items-center text-sm">
                         <span className="text-muted-foreground">Bulan Lalu:</span>
-                        <span className="font-medium">{prevNum.toFixed(1)}% ({previousMonth})</span>
+                        <span className="font-medium">
+                          {prevNum !== null ? `${prevNum.toFixed(2)}%` : '-'} ({previousMonth || 'Oct 2025'})
+                        </span>
                       </div>
                       <div className="flex justify-between items-center text-sm">
                         <span className="text-muted-foreground">Selisih:</span>
-                        <span className={`font-medium ${trendValue >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {trendValue >= 0 ? '+' : ''}{trendValue.toFixed(1)}%
+                        <span className={`font-medium ${
+                          latestNum !== null && prevNum !== null 
+                            ? (trendValue >= 0 ? 'text-green-600' : 'text-red-600')
+                            : 'text-gray-500'
+                        }`}>
+                          {latestNum !== null && prevNum !== null 
+                            ? `${trendValue >= 0 ? '+' : ''}${trendValue.toFixed(2)}%`
+                            : '-'
+                          }
                         </span>
                       </div>
                       <div className="pt-2 border-t space-y-1">
                         <p className="text-sm text-muted-foreground">
                           <span className="font-medium text-foreground">{stats.count}</span> employees
                         </p>
-                        <p className="text-sm text-muted-foreground">
-                          Avg Performance: <span className="font-medium text-foreground">{latestNum.toFixed(1)}%</span>
-                        </p>
+                        
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full mt-2 h-8 text-xs hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                          onClick={() => {
+                            setSelectedDepartmentForDetail(dept);
+                            setShowKpiDetailPopup(true);
+                          }}
+                        >
+                          <Users className="h-3 w-3 mr-1" />
+                          View Employee KPI Details
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -1361,7 +1626,7 @@ export const Dashboard = () => {
                               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 max-w-[100px]">
                                 <div className="bg-blue-500 dark:bg-blue-400 h-2 rounded-full transition-all duration-300" style={{ width: `${employee.kpiFinal || 0}%` }} />
                               </div>
-                              <span className="text-sm min-w-[35px]">{(employee.kpiFinal || 0).toFixed(1)}%</span>
+                              <span className="text-sm min-w-[35px]">{(employee.kpiFinal || 0).toFixed(2)}%</span>
                             </div>
                           </TableCell>
                           <TableCell>
@@ -1369,7 +1634,7 @@ export const Dashboard = () => {
                               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 max-w-[100px]">
                                 <div className="bg-green-500 dark:bg-green-400 h-2 rounded-full transition-all duration-300" style={{ width: `${employee.scorePelatihan || 0}%` }} />
                               </div>
-                              <span className="text-sm min-w-[35px]">{(employee.scorePelatihan || 0).toFixed(1)}%</span>
+                              <span className="text-sm min-w-[35px]">{(employee.scorePelatihan || 0).toFixed(2)}%</span>
                             </div>
                           </TableCell>
                           <TableCell>
@@ -1377,7 +1642,7 @@ export const Dashboard = () => {
                               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 max-w-[100px]">
                                 <div className="bg-yellow-500 dark:bg-yellow-400 h-2 rounded-full transition-all duration-300" style={{ width: `${employee.scoreKehadiran || 0}%` }} />
                               </div>
-                              <span className="text-sm min-w-[35px]">{(employee.scoreKehadiran || 0).toFixed(1)}%</span>
+                              <span className="text-sm min-w-[35px]">{(employee.scoreKehadiran || 0).toFixed(2)}%</span>
                             </div>
                           </TableCell>
                           <TableCell>
@@ -1394,6 +1659,62 @@ export const Dashboard = () => {
           </Card>
         </div>
       </main>
+
+      {/* KPI Detail Popup */}
+      <Dialog open={showKpiDetailPopup} onOpenChange={setShowKpiDetailPopup}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>Employee KPI Details - {selectedDepartmentForDetail}</DialogTitle>
+            <DialogDescription>
+              Individual KPI Final scores for all employees in {selectedDepartmentForDetail} department
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="overflow-y-auto max-h-[60vh] space-y-2">
+            {selectedDepartmentForDetail && getEmployeesWithKPIBulanan(selectedDepartmentForDetail).length > 0 ? (
+              getEmployeesWithKPIBulanan(selectedDepartmentForDetail).map((employee: any, idx: number) => (
+                <div key={employee.id || idx} className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent transition-colors">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                      employee.kpiFinal >= 90 ? 'bg-green-500' :
+                      employee.kpiFinal >= 75 ? 'bg-blue-500' :
+                      employee.kpiFinal >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                    }`}></div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-foreground truncate">
+                        {employee.nama || employee.name}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {employee.jabatan?.[0]?.nama || 'No Position'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                      {(employee.kpiFinal || 0).toFixed(2)}%
+                    </p>
+                    <Badge variant="outline" className={`text-xs ${
+                      employee.kpiFinal >= 90 ? 'border-green-500 text-green-700 dark:text-green-300' :
+                      employee.kpiFinal >= 75 ? 'border-blue-500 text-blue-700 dark:text-blue-300' :
+                      employee.kpiFinal >= 60 ? 'border-yellow-500 text-yellow-700 dark:text-yellow-300' :
+                      'border-red-500 text-red-700 dark:text-red-300'
+                    }`}>
+                      {employee.kpiFinal >= 90 ? 'Excellent' :
+                       employee.kpiFinal >= 75 ? 'Good' :
+                       employee.kpiFinal >= 60 ? 'Average' : 'Poor'}
+                    </Badge>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">No employee data available for this department</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

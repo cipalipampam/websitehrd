@@ -212,6 +212,11 @@ export const karyawanAPI = {
     const response = await api.delete<{ status: number; message: string }>(`/api/karyawan/${id}`);
     return response.data;
   },
+
+  getKpiBulanan: async (params?: { bulan?: string; departemenId?: string; year?: number }): Promise<any> => {
+    const response = await api.get('/api/karyawan/kpi-bulanan', { params });
+    return response.data;
+  },
 };
 
 // KPI Indicator API
@@ -295,7 +300,33 @@ export const kpiAPI = {
   },
 
   getBulanan: async (params?: { bulan?: string; departemenId?: string; year?: number }): Promise<any> => {
+    console.log('KPI Bulanan API Call with params:', params);
     const response = await api.get('/api/kpi/bulanan', { params });
+    
+    // Log the new response structure for debugging
+    console.log('KPI Bulanan API Response:', {
+      status: response.status,
+      dataType: typeof response.data,
+      isArray: Array.isArray(response.data),
+      sampleData: Array.isArray(response.data) ? response.data.slice(0, 2) : response.data,
+      totalRecords: Array.isArray(response.data) ? response.data.length : 'Not an array'
+    });
+    
+    // Handle new response format with departemenId, departemen, bulan, kpiFinalDepartemen
+    if (Array.isArray(response.data)) {
+      response.data.forEach((item: any, index: number) => {
+        if (index < 3) { // Log first 3 items for debugging
+          console.log(`KPI Bulanan Item ${index}:`, {
+            departemenId: item.departemenId,
+            departemen: item.departemen,
+            bulan: item.bulan,
+            kpiFinalDepartemen: item.kpiFinalDepartemen,
+            hasAllRequiredFields: !!(item.departemenId && item.departemen && item.bulan && item.kpiFinalDepartemen !== undefined)
+          });
+        }
+      });
+    }
+    
     return response.data;
   },
 
