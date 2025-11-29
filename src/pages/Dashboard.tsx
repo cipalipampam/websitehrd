@@ -1368,7 +1368,18 @@ export const Dashboard = () => {
                       <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} label={{ value: 'KPI (%)', angle: -90, position: 'insideLeft' }} />
                       <Tooltip 
                         formatter={(value, name) => [`KPI Final: ${Math.round(Number(value)) || 0}%`, `${name} Dept`]} 
-                        labelFormatter={(label) => `Bulan: ${label}`} 
+                        labelFormatter={(label) => `Bulan: ${label}`}
+                        contentStyle={{
+                          backgroundColor: document.documentElement.classList.contains('dark') ? 'rgb(64, 64, 64)' : 'white',
+                          border: document.documentElement.classList.contains('dark') ? '1px solid rgb(75, 85, 99)' : '1px solid rgb(229, 231, 235)',
+                          borderRadius: '8px',
+                          color: document.documentElement.classList.contains('dark') ? 'white' : 'rgb(17, 24, 39)',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+                        }}
+                        labelStyle={{
+                          color: document.documentElement.classList.contains('dark') ? 'white' : 'rgb(17, 24, 39)',
+                          fontWeight: '600'
+                        }}
                       />
                       <Legend />
                       {getDepartmentsToRender().map((dept) => (
