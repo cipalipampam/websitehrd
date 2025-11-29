@@ -30,6 +30,13 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { Plus, Pencil, Trash2, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { AxiosError } from 'axios';
@@ -241,37 +248,6 @@ export const Jabatan = () => {
             </Button>
           </div>
 
-          {/* Filter by Department */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <Label htmlFor="filter-dept" className="whitespace-nowrap">Filter Departemen:</Label>
-                <select
-                  id="filter-dept"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                  value={filterDepartemen}
-                  onChange={(e) => setFilterDepartemen(e.target.value)}
-                >
-                  <option value="">Semua Departemen</option>
-                  {departemen.map((dept) => (
-                    <option key={dept.id} value={dept.id}>
-                      {dept.nama}
-                    </option>
-                  ))}
-                </select>
-                {filterDepartemen && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setFilterDepartemen('')}
-                  >
-                    Reset
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
           <Card>
             <CardHeader>
               <CardTitle>Daftar Jabatan</CardTitle>
@@ -280,6 +256,34 @@ export const Jabatan = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
+              {/* Filter Section */}
+              <div className="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="department-filter" className="text-sm font-medium whitespace-nowrap">
+                    Filter Departemen:
+                  </Label>
+                  <Select value={filterDepartemen || 'all'} onValueChange={(value) => setFilterDepartemen(value === 'all' ? '' : value)}>
+                    <SelectTrigger className="w-48" id="department-filter">
+                      <SelectValue placeholder="Pilih Departemen" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua Departemen</SelectItem>
+                      {departemen.map((dept) => (
+                        <SelectItem key={dept.id} value={dept.id}>{dept.nama}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {jabatan.length} jabatan
+                  {filterDepartemen && (
+                    <span className="ml-1">
+                      di {departemen.find(d => d.id === filterDepartemen)?.nama}
+                    </span>
+                  )}
+                </div>
+              </div>
+
               {loading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-gray-500" />

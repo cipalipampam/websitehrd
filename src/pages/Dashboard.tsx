@@ -51,6 +51,9 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
 } from 'recharts';
 import {
   Building2,
@@ -160,6 +163,7 @@ export const Dashboard = () => {
   const [loadingAttendance, setLoadingAttendance] = useState(false);
   const [errorAttendance, setErrorAttendance] = useState<string | null>(null);
   const [loadingKpi, setLoadingKpi] = useState(false);
+  const [needleAnimation, setNeedleAnimation] = useState({ annual: false, monthly: false });
   
   // KPI Detail Popup states
   const [showKpiDetailPopup, setShowKpiDetailPopup] = useState(false);
@@ -509,6 +513,25 @@ export const Dashboard = () => {
     loadAttendanceData();
   }, [selectedAttendanceMonth, selectedAttendanceYear, user]);
 
+  // Trigger needle animation after data loads with 1-second delay
+  useEffect(() => {
+    if ((!loadingKpi && kpiBulanan.length > 0) || (!loadingAttendance && attendanceRecords.length > 0)) {
+      // Reset first, then start animation with 1-second delay + staggered timing
+      setNeedleAnimation({ annual: false, monthly: false });
+      
+      setTimeout(() => {
+        setNeedleAnimation(prev => ({ ...prev, annual: true }));
+      }, 2800); // 1 second + 500ms
+      
+      setTimeout(() => {
+        setNeedleAnimation(prev => ({ ...prev, monthly: true }));
+      }, 2800); // 1 second + 800ms
+    } else {
+      // Reset animation when loading or no data
+      setNeedleAnimation({ annual: false, monthly: false });
+    }
+  }, [loadingKpi, kpiBulanan, loadingAttendance, attendanceRecords]);
+
   // Helper utils
   const getMonthName = (monthIndex: number) => {
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -837,7 +860,31 @@ export const Dashboard = () => {
     return monthlyKPI;
   };
 
-  const getTotalEmployees = () => karyawan.length;
+  // Calculate average attendance score for current month
+  const getCurrentMonthAttendanceScore = () => {
+    if (!attendanceRecords || attendanceRecords.length === 0) return 0;
+    
+    const currentMonth = new Date().getMonth() + 1;
+    const currentYear = new Date().getFullYear();
+    
+    // Filter attendance records for current month/year
+    const currentMonthRecords = attendanceRecords.filter(record => {
+      const recordDate = new Date(record.tanggal);
+      return recordDate.getMonth() + 1 === currentMonth && recordDate.getFullYear() === currentYear;
+    });
+    
+    if (currentMonthRecords.length === 0) return 0;
+    
+    // Calculate attendance score (Present/Total * 100)
+    const totalRecords = currentMonthRecords.length;
+    const presentRecords = currentMonthRecords.filter(record => 
+      record.status === 'HADIR' || record.status === 'TERLAMBAT'
+    ).length;
+    
+    return Math.round((presentRecords / totalRecords) * 100);
+  };
+
+
 
   // Helper function to get employees with actual individual KPI data
   const getEmployeesWithKPIBulanan = (departmentName: string) => {
@@ -1086,65 +1133,344 @@ export const Dashboard = () => {
           </div>
 
           {/* Stats Cards */}
-            <div className="grid gap-6 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-3">
               <Card>
-                <CardHeader>
-                  <CardTitle>Average KPI (Last 12 Months)</CardTitle>
-                  <CardDescription>Overall performance trend</CardDescription>
-                </CardHeader>
-                <CardContent>
+                <CardContent className="p-2">
                   {loadingKpi ? (
-                    <div className="flex items-center gap-2">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600"></div>
-                      <p className="text-sm text-muted-foreground">Loading...</p>
+                    <div className="flex flex-col items-center py-4">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600 mb-1"></div>
+                      <p className="text-xs text-muted-foreground">Loading...</p>
                     </div>
                   ) : kpiBulanan.length === 0 ? (
-                    <div>
-                      <p className="text-3xl font-bold text-gray-400">0%</p>
-                      <p className="text-sm text-muted-foreground">No KPI data available</p>
+                    <div className="flex flex-col items-center">
+                      <div className="relative w-52 h-32 mb-1">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={[
+                                { value: 25, color: '#dc2626' },
+                                { value: 25, color: '#ea580c' }, 
+                                { value: 25, color: '#eab308' },
+                                { value: 25, color: '#16a34a' }
+                              ]}
+                              cx="50%"
+                              cy="90%"
+                              innerRadius={55}
+                              outerRadius={80}
+                              startAngle={180}
+                              endAngle={0}
+                              dataKey="value"
+                              stroke="none"
+                            >
+                              <Cell fill="#dc2626" />
+                              <Cell fill="#ea580c" />
+                              <Cell fill="#eab308" />
+                              <Cell fill="#16a34a" />
+                            </Pie>
+                          </PieChart>
+                        </ResponsiveContainer>
+                        <div className="absolute bottom-[-20px] left-1/2 transform -translate-x-1/2">
+                          <div className="text-lg font-bold text-gray-400">0%</div>
+                        </div>
+                        {/* Needle for 0% */}
+                        <div 
+                          className="absolute w-0.5 h-18 bg-gray-600 dark:bg-gray-300 origin-bottom z-10"
+                          style={{
+                            bottom: '10%',
+                            left: '50%',
+                            transform: 'translateX(-50%) rotate(-90deg)',
+                            transformOrigin: 'bottom center'
+                          }}
+                        />
+
+                      </div>
+                      <div className="text-center mt-8">
+                        <h3 className="text-sm font-semibold text-foreground">KPI Tahunan {new Date().getFullYear()}</h3>
+                        <p className="text-xs text-muted-foreground">No data</p>
+                      </div>
                     </div>
                   ) : (
-                    <div>
-                      <p className="text-3xl font-bold text-green-600 dark:text-green-400">{calculateAverageKPI().toFixed(2)}%</p>
-                      <p className="text-sm text-muted-foreground">12-Month Average ({kpiBulanan.length} records)</p>
+                    <div className="flex flex-col items-center">
+                      <div className="relative w-52 h-32 mb-1">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={[
+                                { value: 25, color: '#dc2626' },
+                                { value: 25, color: '#ea580c' }, 
+                                { value: 25, color: '#eab308' },
+                                { value: 25, color: '#16a34a' }
+                              ]}
+                              cx="50%"
+                              cy="90%"
+                              innerRadius={55}
+                              outerRadius={80}
+                              startAngle={180}
+                              endAngle={0}
+                              dataKey="value"
+                              stroke="none"
+                            >
+                              <Cell fill="#dc2626" />
+                              <Cell fill="#ea580c" />
+                              <Cell fill="#eab308" />
+                              <Cell fill="#16a34a" />
+                            </Pie>
+                          </PieChart>
+                        </ResponsiveContainer>
+                        <div className="absolute bottom-[-20px] left-1/2 transform -translate-x-1/2">
+                          <div className={`text-lg font-bold ${
+                            calculateAverageKPI() <= 25 ? 'text-red-600 dark:text-red-400' :
+                            calculateAverageKPI() <= 50 ? 'text-orange-600 dark:text-orange-400' :
+                            calculateAverageKPI() <= 75 ? 'text-yellow-600 dark:text-yellow-400' :
+                            'text-green-600 dark:text-green-400'
+                          }`}>
+                            {calculateAverageKPI().toFixed(1)}%
+                          </div>
+                        </div>
+                        {/* Needle based on KPI value */}
+                        <div 
+                          className="absolute w-0.5 h-18 bg-gray-800 dark:bg-white origin-bottom z-10"
+                          style={{
+                            bottom: '10%',
+                            left: '50%',
+                            transform: `translateX(-50%) rotate(${needleAnimation.annual ? (-90 + (calculateAverageKPI() / 100 * 180)) : -90}deg)`,
+                            transformOrigin: 'bottom center',
+                            transition: needleAnimation.annual ? 'transform 3.5s cubic-bezier(0.16, 1, 0.3, 1)' : 'none'
+                          }}
+                        />
+                      </div>
+                      <div className="text-center mt-8">
+                        <h3 className="text-sm font-semibold text-foreground">KPI Tahunan {new Date().getFullYear()}</h3>
+                        <p className="text-xs text-muted-foreground">{kpiBulanan.length} data</p>
+                      </div>
                     </div>
                   )}
                 </CardContent>
               </Card>
 
               <Card>
-              <CardHeader>
-                <CardTitle>Current Month KPI</CardTitle>
-                <CardDescription>This month's performance</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loadingKpi ? (
-                  <div className="flex items-center gap-2">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                    <p className="text-sm text-muted-foreground">Loading...</p>
+                <CardContent className="p-2">
+                  {loadingKpi ? (
+                    <div className="flex flex-col items-center py-4">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mb-1"></div>
+                    <p className="text-xs text-muted-foreground">Loading...</p>
                   </div>
                 ) : kpiBulanan.length === 0 ? (
-                  <div>
-                    <p className="text-3xl font-bold text-gray-400">0%</p>
-                    <p className="text-sm text-muted-foreground">No current data</p>
+                  <div className="flex flex-col items-center">
+                    <div className="relative w-52 h-32 mb-1">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={[
+                              { value: 25, color: '#dc2626' },
+                              { value: 25, color: '#ea580c' }, 
+                              { value: 25, color: '#eab308' },
+                              { value: 25, color: '#16a34a' }
+                            ]}
+                            cx="50%"
+                            cy="90%"
+                            innerRadius={55}
+                            outerRadius={80}
+                            startAngle={180}
+                            endAngle={0}
+                            dataKey="value"
+                            stroke="none"
+                          >
+                            <Cell fill="#dc2626" />
+                            <Cell fill="#ea580c" />
+                            <Cell fill="#eab308" />
+                            <Cell fill="#16a34a" />
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="absolute bottom-[-20px] left-1/2 transform -translate-x-1/2">
+                        <div className="text-lg font-bold text-gray-400">0%</div>
+                      </div>
+                      {/* Needle for 0% */}
+                      <div 
+                        className="absolute w-0.5 h-18 bg-gray-600 dark:bg-gray-300 origin-bottom z-10"
+                        style={{
+                          bottom: '10%',
+                          left: '50%',
+                          transform: 'translateX(-50%) rotate(-90deg)',
+                          transformOrigin: 'bottom center'
+                        }}
+                      />
+                    </div>
+                    <div className="text-center mt-8">
+                      <h3 className="text-sm font-semibold text-foreground">KPI {new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}</h3>
+                      <p className="text-xs text-muted-foreground">No data</p>
+                    </div>
                   </div>
                 ) : (
-                  <div>
-                    <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{getCurrentMonthKPI().toFixed(2)}%</p>
-                    <p className="text-sm text-muted-foreground">Monthly Average</p>
+                  <div className="flex flex-col items-center">
+                    <div className="relative w-52 h-32 mb-1">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={[
+                              { value: 25, color: '#dc2626' },
+                              { value: 25, color: '#ea580c' }, 
+                              { value: 25, color: '#eab308' },
+                              { value: 25, color: '#16a34a' }
+                            ]}
+                            cx="50%"
+                            cy="90%"
+                            innerRadius={55}
+                            outerRadius={80}
+                            startAngle={180}
+                            endAngle={0}
+                            dataKey="value"
+                            stroke="none"
+                          >
+                            <Cell fill="#dc2626" />
+                            <Cell fill="#ea580c" />
+                            <Cell fill="#eab308" />
+                            <Cell fill="#16a34a" />
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="absolute bottom-[-20px] left-1/2 transform -translate-x-1/2">
+                        <div className={`text-lg font-bold ${
+                          getCurrentMonthKPI() <= 25 ? 'text-red-600 dark:text-red-400' :
+                          getCurrentMonthKPI() <= 50 ? 'text-orange-600 dark:text-orange-400' :
+                          getCurrentMonthKPI() <= 75 ? 'text-yellow-600 dark:text-yellow-400' :
+                          'text-green-600 dark:text-green-400'
+                        }`}>
+                          {getCurrentMonthKPI().toFixed(1)}%
+                        </div>
+                      </div>
+                      {/* Needle based on KPI value */}
+                      <div 
+                        className="absolute w-0.5 h-18 bg-gray-800 dark:bg-white origin-bottom z-10"
+                        style={{
+                          bottom: '10%',
+                          left: '50%',
+                          transform: `translateX(-50%) rotate(${needleAnimation.monthly ? (-90 + (getCurrentMonthKPI() / 100 * 180)) : -90}deg)`,
+                          transformOrigin: 'bottom center',
+                          transition: needleAnimation.monthly ? 'transform 3.5s cubic-bezier(0.16, 1, 0.3, 1)' : 'none'
+                        }}
+                      />
+                    </div>
+                    <div className="text-center mt-8">
+                      <h3 className="text-sm font-semibold text-foreground">KPI {new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}</h3>
+                      <p className="text-xs text-muted-foreground">Rata-rata</p>
+                    </div>
                   </div>
                 )}
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader>
-                <CardTitle>Total Employees</CardTitle>
-                <CardDescription>Active employees</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">{getTotalEmployees()}</p>
-                <p className="text-sm text-muted-foreground">All departments</p>
+              <CardContent className="p-2">
+                {loadingAttendance ? (
+                  <div className="flex flex-col items-center py-4">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-600 mb-1"></div>
+                    <p className="text-xs text-muted-foreground">Loading...</p>
+                  </div>
+                ) : attendanceRecords.length === 0 ? (
+                  <div className="flex flex-col items-center">
+                    <div className="relative w-52 h-32 mb-1">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={[
+                              { value: 25, color: '#dc2626' },
+                              { value: 25, color: '#ea580c' }, 
+                              { value: 25, color: '#eab308' },
+                              { value: 25, color: '#16a34a' }
+                            ]}
+                            cx="50%"
+                            cy="90%"
+                            innerRadius={55}
+                            outerRadius={80}
+                            startAngle={180}
+                            endAngle={0}
+                            dataKey="value"
+                            stroke="none"
+                          >
+                            <Cell fill="#dc2626" />
+                            <Cell fill="#ea580c" />
+                            <Cell fill="#eab308" />
+                            <Cell fill="#16a34a" />
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="absolute bottom-[-20px] left-1/2 transform -translate-x-1/2">
+                        <div className="text-lg font-bold text-gray-400">0%</div>
+                      </div>
+                      {/* Needle for 0% */}
+                      <div 
+                        className="absolute w-0.5 h-18 bg-gray-600 dark:bg-gray-300 origin-bottom z-10"
+                        style={{
+                          bottom: '10%',
+                          left: '50%',
+                          transform: 'translateX(-50%) rotate(-90deg)',
+                          transformOrigin: 'bottom center'
+                        }}
+                      />
+                    </div>
+                    <div className="text-center mt-8">
+                      <h3 className="text-sm font-semibold text-foreground">Score Presensi {new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}</h3>
+                      <p className="text-xs text-muted-foreground">No data</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center">
+                    <div className="relative w-52 h-32 mb-1">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={[
+                              { value: 25, color: '#dc2626' },
+                              { value: 25, color: '#ea580c' }, 
+                              { value: 25, color: '#eab308' },
+                              { value: 25, color: '#16a34a' }
+                            ]}
+                            cx="50%"
+                            cy="90%"
+                            innerRadius={55}
+                            outerRadius={80}
+                            startAngle={180}
+                            endAngle={0}
+                            dataKey="value"
+                            stroke="none"
+                          >
+                            <Cell fill="#dc2626" />
+                            <Cell fill="#ea580c" />
+                            <Cell fill="#eab308" />
+                            <Cell fill="#16a34a" />
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="absolute bottom-[-20px] left-1/2 transform -translate-x-1/2">
+                        <div className={`text-lg font-bold ${
+                          getCurrentMonthAttendanceScore() <= 25 ? 'text-red-600 dark:text-red-400' :
+                          getCurrentMonthAttendanceScore() <= 50 ? 'text-orange-600 dark:text-orange-400' :
+                          getCurrentMonthAttendanceScore() <= 75 ? 'text-yellow-600 dark:text-yellow-400' :
+                          'text-green-600 dark:text-green-400'
+                        }`}>
+                          {getCurrentMonthAttendanceScore()}%
+                        </div>
+                      </div>
+                      {/* Needle based on attendance score */}
+                      <div 
+                        className="absolute w-0.5 h-18 bg-gray-800 dark:bg-white origin-bottom z-10"
+                        style={{
+                          bottom: '10%',
+                          left: '50%',
+                          transform: `translateX(-50%) rotate(${needleAnimation.monthly ? (-90 + (getCurrentMonthAttendanceScore() / 100 * 180)) : -90}deg)`,
+                          transformOrigin: 'bottom center',
+                          transition: needleAnimation.monthly ? 'transform 3.5s cubic-bezier(0.16, 1, 0.3, 1)' : 'none'
+                        }}
+                      />
+                    </div>
+                    <div className="text-center mt-8">
+                      <h3 className="text-sm font-semibold text-foreground">Score Presensi {new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}</h3>
+                      <p className="text-xs text-muted-foreground">Rata-rata kehadiran</p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
