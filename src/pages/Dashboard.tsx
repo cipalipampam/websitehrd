@@ -149,8 +149,8 @@ export const Dashboard = () => {
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [selectedEmployeeDepartment, setSelectedEmployeeDepartment] = useState('Semua Departemen');
   const [selectedAttendanceDepartment, setSelectedAttendanceDepartment] = useState('Analytics');
-  const [selectedAttendanceMonth, setSelectedAttendanceMonth] = useState(new Date().getMonth());
-  const [selectedAttendanceYear, setSelectedAttendanceYear] = useState(new Date().getFullYear());
+  const [selectedAttendanceMonth, setSelectedAttendanceMonth] = useState(10);
+  const [selectedAttendanceYear, setSelectedAttendanceYear] = useState(2025);
 
   // Data states
   const [departments, setDepartments] = useState<string[]>([]);
@@ -340,27 +340,26 @@ export const Dashboard = () => {
           console.log(`Item keys:`, Object.keys(x));
           
           const processed = {
-            // Use new response format fields
-            departemenId: x.departemenId || x.id || `dept-${index}`, // "8a5d74a6-9593-479a-8460-ea3e5d78c991"
-            departemen: x.departemen || x.department || x.nama || 'Unknown', // "Analytics"
-            bulan: x.bulan || x.month || x.periode || '2025-11', // "2025-11"
-            kpiFinalDepartemen: Number(x.kpiFinalDepartemen || 0), // 49.35 - Primary KPI value
-            // Keep existing fields for backward compatibility
-            scorePresensi: Number(x.scorePresensi || x.avgScorePresensi || x.attendance_score || x.presensi || 0),
-            scorePelatihan: Number(x.scorePelatihan || x.avgScorePelatihan || x.training_score || x.pelatihan || 0),
-            bobotPresensi: Number(x.bobotPresensi || x.attendance_weight || 60),
-            bobotPelatihan: Number(x.bobotPelatihan || x.training_weight || 40),
-            totalBobotIndikatorLain: Number(x.totalBobotIndikatorLain || x.avgIndicatorBobot || 0),
-            totalScoreIndikatorLain: Number(x.totalScoreIndikatorLain || x.avgIndicatorScore || 0),
-            kpiFinal: Number(x.kpiFinal || x.kpiFinalDepartemen || x.finalKPI || x.kpi || x.score || 0),
-            // Additional fields from response
-            avgScorePresensi: Number(x.avgScorePresensi || x.scorePresensi || 0),
-            avgScorePelatihan: Number(x.avgScorePelatihan || x.scorePelatihan || 0),
-            avgIndicatorScore: Number(x.avgIndicatorScore || 0),
-            avgIndicatorBobot: Number(x.avgIndicatorBobot || 0),
-            // Employee info jika tersedia
+            // Use new department-level response format
+            departemenId: x.departemenId || x.id || `dept-${index}`, // "cbe52d63-6932-4da3-9e90-35bfb3a29d04"
+            departemen: x.departemen || x.department || x.nama || 'Unknown', // "HR"
+            tahun: Number(x.tahun) || 2025, // 2025
+            bulan: x.bulan || x.month || x.periode || '11', // "11"
+            kpiFinalDepartemen: Number(x.kpiFinalDepartemen) || 0, // 62.838691357711426
+            avgScorePresensi: Number(x.avgScorePresensi) || 0, // 95.5
+            avgScorePelatihan: Number(x.avgScorePelatihan) || 0, // 47.5
+            avgIndicatorScore: Number(x.avgIndicatorScore) || 0, // 893.3180547353659
+            avgIndicatorBobot: Number(x.avgIndicatorBobot) || 0, // 9
+            // Employee fields for backward compatibility (if present)
             karyawanId: x.karyawanId || x.employeeId || x.emp_id || null,
-            namaKaryawan: x.namaKaryawan || x.employeeName || x.nama || null
+            namaKaryawan: x.namaKaryawan || x.employeeName || x.nama || null,
+            scorePresensi: Number(x.scorePresensi) || 0,
+            scorePelatihan: Number(x.scorePelatihan) || 0,
+            bobotPresensi: Number(x.bobotPresensi) || 60,
+            bobotPelatihan: Number(x.bobotPelatihan) || 40,
+            totalBobotIndikatorLain: Number(x.totalBobotIndikatorLain) || 0,
+            totalScoreIndikatorLain: Number(x.totalScoreIndikatorLain) || 0,
+            kpiFinal: Number(x.kpiFinal || x.kpiFinalDepartemen) || 0
           };
           
           console.log(`Processed item ${index}:`, processed);
@@ -376,21 +375,21 @@ export const Dashboard = () => {
             console.log(`Item ${i}:`, {
               departemenId: item.departemenId,
               departemen: item.departemen,
+              tahun: item.tahun,
               bulan: item.bulan,
               karyawanId: item.karyawanId,
               namaKaryawan: item.namaKaryawan,
-              kpiFinal: item.kpiFinal,
-              kpiFinalDepartemen: item.kpiFinalDepartemen
+              kpiFinal: item.kpiFinal
             });
           }
         });
         console.log('Departments in data:', [...new Set(clean.map(x => x.departemen))]);
-        console.log('Months in data:', [...new Set(clean.map(x => x.bulan))]);
+        console.log('Months in data:', [...new Set(clean.map(x => `${x.tahun}-${x.bulan}`))]);
         console.log('Items with karyawanId:', clean.filter(x => x.karyawanId).length);
         console.log('Items with namaKaryawan:', clean.filter(x => x.namaKaryawan).length);
-        console.log('Available months in data:', [...new Set(clean.map(x => x.bulan))].sort());
+        console.log('Available months in data:', [...new Set(clean.map(x => `${x.tahun}-${x.bulan.toString().padStart(2, '0')}`))].sort());
         console.log('Target month (November 2025):', '2025-11');
-        console.log('Current system date:', new Date().toISOString().slice(0, 7));
+        console.log('Current parameters: bulan=11, tahun=2025');
         console.log('==============================');
         
         setKpiBulanan(clean);
@@ -597,30 +596,31 @@ export const Dashboard = () => {
     }
 
     kpiBulanan.forEach((item: any) => {
-      // Extract parameters from new response structure
-      const bulanParam = item.bulan; // X-axis: "2025-11" format
-      const departemenName = item.departemen; // Department name: "Analytics"
-      const departemenId = item.departemenId; // Department ID: "8a5d74a6-9593-479a-8460-ea3e5d78c991"
-      const kpiValue = Number(item.kpiFinalDepartemen) || 0; // Y-axis: KPI value from kpiFinalDepartemen: 49.35
+      // Extract parameters from department-level response structure
+      const bulanParam = item.bulan; // X-axis: "11" format
+      const tahunParam = item.tahun || 2025; // Year: 2025
+      const departemenName = item.departemen; // Department name: "HR"
+      const departemenId = item.departemenId; // Department ID: "cbe52d63-6932-4da3-9e90-35bfb3a29d04"
+      const kpiValue = Number(item.kpiFinalDepartemen) || 0; // Y-axis: KPI value from kpiFinalDepartemen: 62.838691357711426
       
       if (!bulanParam || !departemenName) return;
       
-      // Format month for display (2025-11 -> Nov 2025)
-      const [year, month] = bulanParam.split('-');
+      // Format month for display (11 -> Nov 2025)
       const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      const displayMonth = `${monthNames[parseInt(month, 10) - 1]} ${year}`;
+      const displayMonth = `${monthNames[parseInt(bulanParam, 10) - 1]} ${tahunParam}`;
+      const chartKey = `${tahunParam}-${bulanParam.toString().padStart(2, '0')}`; // "2025-11"
       
-      if (!grouped[bulanParam]) {
-        grouped[bulanParam] = { 
+      if (!grouped[chartKey]) {
+        grouped[chartKey] = { 
           month: displayMonth, // Display format for chart
-          bulan: bulanParam,   // Original parameter for sorting
-          rawMonth: bulanParam // Keep original for filtering
+          bulan: chartKey,   // Original parameter for sorting
+          rawMonth: chartKey // Keep original for filtering
         };
       }
       
       // Map department KPI values for line chart using kpiFinalDepartemen
-      grouped[bulanParam][departemenName] = kpiValue;
-      console.log(`Chart Data - Bulan: ${bulanParam}, Display: ${displayMonth}, Dept: ${departemenName} (ID: ${departemenId}), KPI Final Departemen: ${kpiValue}`);
+      grouped[chartKey][departemenName] = kpiValue;
+      console.log(`Chart Data - Bulan: ${bulanParam}, Tahun: ${tahunParam}, Display: ${displayMonth}, Dept: ${departemenName} (ID: ${departemenId}), KPI Final Departemen: ${kpiValue}`);
     });
 
       // Sort by month variable and keep as parameter
@@ -640,10 +640,10 @@ export const Dashboard = () => {
   }, [kpiBulanan]);
 
   // Chart date range controls
-  const [chartStartMonth, setChartStartMonth] = useState<number>(new Date().getMonth() - 11);
-  const [chartStartYear, setChartStartYear] = useState<number>(new Date().getFullYear());
-  const [chartEndMonth, setChartEndMonth] = useState<number>(new Date().getMonth());
-  const [chartEndYear, setChartEndYear] = useState<number>(new Date().getFullYear());
+  const [chartStartMonth, setChartStartMonth] = useState<number>(9);
+  const [chartStartYear, setChartStartYear] = useState<number>(2025);
+  const [chartEndMonth, setChartEndMonth] = useState<number>(10);
+  const [chartEndYear, setChartEndYear] = useState<number>(2025);
 
   const getFilteredData = () => {
     if (!getLast12MonthsData || getLast12MonthsData.length === 0) {
@@ -651,12 +651,12 @@ export const Dashboard = () => {
       return [];
     }
 
-    const startDate = new Date(chartStartYear, chartStartMonth < 0 ? 0 : chartStartMonth);
+    const startDate = new Date(chartStartYear, chartStartMonth);
     const endDate = new Date(chartEndYear, chartEndMonth);
 
     const filtered = getLast12MonthsData.filter((item: any) => {
-      // Use rawMonth (2025-10) for proper filtering instead of display format
-      const monthStr = item.rawMonth || item.bulan; // Use backend format "2025-10"
+      // Use rawMonth (2025-11) for proper filtering
+      const monthStr = item.rawMonth || item.bulan; // Use format "2025-11"
       if (!monthStr) return false;
       
       const [year, month] = monthStr.split('-');
@@ -685,8 +685,8 @@ export const Dashboard = () => {
     }
 
     // Define target months: November 2025 (current) and October 2025 (previous)
-    const currentMonth = '2025-11'; // November 2025 (bulan saat ini)
-    const previousMonth = '2025-10'; // October 2025 (bulan saat ini - 1)
+    const currentMonth = '11'; // November 2025 (bulan saat ini)
+    const previousMonth = '10'; // October 2025 (bulan saat ini - 1)
     
     // Get specific month data using the new response format
     const currentMonthData = deptData.find((x: any) => x.bulan === currentMonth);
@@ -697,7 +697,7 @@ export const Dashboard = () => {
       targetPreviousMonth: previousMonth,
       foundCurrentData: currentMonthData,
       foundPreviousData: previousMonthData,
-      availableMonths: deptData.map(x => x.bulan).sort(),
+      availableMonths: deptData.map(x => `${x.tahun}-${x.bulan}`).sort(),
       currentKpiFinalDepartemen: currentMonthData?.kpiFinalDepartemen,
       previousKpiFinalDepartemen: previousMonthData?.kpiFinalDepartemen,
       currentDepartemenId: currentMonthData?.departemenId,
@@ -710,10 +710,10 @@ export const Dashboard = () => {
     const previousKPI = previousMonthData && previousMonthData.kpiFinalDepartemen !== undefined 
       ? Number(previousMonthData.kpiFinalDepartemen) : null;
     const departemenId = currentMonthData?.departemenId || previousMonthData?.departemenId;
-    const currentScorePresensi = currentMonthData ? Number(currentMonthData.scorePresensi) || 0 : 0;
-    const currentScorePelatihan = currentMonthData ? Number(currentMonthData.scorePelatihan) || 0 : 0;
-    const bobotPresensi = currentMonthData ? Number(currentMonthData.bobotPresensi) || 0 : 0;
-    const bobotPelatihan = currentMonthData ? Number(currentMonthData.bobotPelatihan) || 0 : 0;
+    const currentAvgScorePresensi = currentMonthData ? Number(currentMonthData.avgScorePresensi) || 0 : 0;
+    const currentAvgScorePelatihan = currentMonthData ? Number(currentMonthData.avgScorePelatihan) || 0 : 0;
+    const avgIndicatorScore = currentMonthData ? Number(currentMonthData.avgIndicatorScore) || 0 : 0;
+    const avgIndicatorBobot = currentMonthData ? Number(currentMonthData.avgIndicatorBobot) || 0 : 0;
     
     console.log(`Final KPI Values for ${dept}:`, {
       departemenId,
@@ -726,23 +726,22 @@ export const Dashboard = () => {
     });
     
     // Format month names for display
-    const formatMonth = (monthStr: string) => {
+    const formatMonth = (monthStr: string, year: number = 2025) => {
       if (!monthStr) return '';
-      const [year, month] = monthStr.split('-');
       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      return `${monthNames[parseInt(month, 10) - 1]} ${year}`;
+      return `${monthNames[parseInt(monthStr, 10) - 1]} ${year}`;
     };
     
     return { 
       latest: currentKPI, // kpiFinalDepartemen from November 2025 record
       prev: previousKPI,  // kpiFinalDepartemen from October 2025 record
-      currentMonth: formatMonth(currentMonth), // Nov 2025
-      previousMonth: formatMonth(previousMonth), // Oct 2025
+      currentMonth: formatMonth(currentMonth, 2025), // Nov 2025
+      previousMonth: formatMonth(previousMonth, 2025), // Oct 2025
       departemenId,
-      scorePresensi: currentScorePresensi,
-      scorePelatihan: currentScorePelatihan,
-      bobotPresensi,
-      bobotPelatihan,
+      avgScorePresensi: currentAvgScorePresensi,
+      avgScorePelatihan: currentAvgScorePelatihan,
+      avgIndicatorScore,
+      avgIndicatorBobot,
       // Tambahan info untuk debugging
       hasCurrentData: currentMonthData !== undefined,
       hasPreviousData: previousMonthData !== undefined
@@ -764,41 +763,37 @@ export const Dashboard = () => {
     const monthlyData: Record<string, number[]> = {};
     
     kpiBulanan.forEach((item: any) => {
-      const bulanParam = item.bulan; // Format: "2025-11", "2025-10", etc.
+      const bulanParam = item.bulan; // Format: "11", "10", etc.
+      const tahunParam = item.tahun || 2025; // Year: 2025
       const kpiValue = Number(item.kpiFinalDepartemen) || 0;
       
       if (!bulanParam) return;
       
-      // Validate year-month format
-      if (!bulanParam.match(/^\d{4}-\d{2}$/)) {
-        console.log(`Invalid date format: ${bulanParam}`);
-        return;
+      // Create year-month key (e.g., "2025-11", "2025-10")
+      const yearMonthKey = `${tahunParam}-${bulanParam.toString().padStart(2, '0')}`;
+      
+      // Group by exact year-month
+      if (!monthlyData[yearMonthKey]) {
+        monthlyData[yearMonthKey] = [];
       }
       
-      // Group by exact year-month (e.g., "2025-11", "2025-10")
-      if (!monthlyData[bulanParam]) {
-        monthlyData[bulanParam] = [];
-      }
-      
-      monthlyData[bulanParam].push(kpiValue);
-      console.log(`Adding KPI: ${bulanParam}, Department: ${item.departemen}, KPI: ${kpiValue}`);
+      monthlyData[yearMonthKey].push(kpiValue);
+      console.log(`Adding KPI: ${yearMonthKey}, Department: ${item.departemen}, KPI Final Departemen: ${kpiValue}`);
     });
     
-    console.log('Monthly KPI data grouped by year-month:', monthlyData);
-    
-    // Calculate monthly averages for each specific month-year
-    const monthlyAverages: Record<string, number> = {};
-    Object.keys(monthlyData).forEach(yearMonth => {
-      const monthKPIs = monthlyData[yearMonth];
-      if (monthKPIs.length > 0) {
-        const monthTotal = monthKPIs.reduce((sum, kpi) => sum + kpi, 0);
-        const monthAverage = monthTotal / monthKPIs.length;
-        monthlyAverages[yearMonth] = monthAverage;
-        console.log(`${yearMonth}: ${monthKPIs.length} departments, Total: ${monthTotal.toFixed(2)}, Average: ${monthAverage.toFixed(2)}%`);
-      }
-    });
-    
-    // Sort months chronologically and get available data
+        console.log('Monthly KPI data grouped by year-month:', monthlyData);
+        
+        // Calculate monthly averages for each specific month-year
+        const monthlyAverages: Record<string, number> = {};
+        Object.keys(monthlyData).forEach(yearMonth => {
+          const monthKPIs = monthlyData[yearMonth];
+          if (monthKPIs.length > 0) {
+            const monthTotal = monthKPIs.reduce((sum, kpi) => sum + kpi, 0);
+            const monthAverage = monthTotal / monthKPIs.length;
+            monthlyAverages[yearMonth] = monthAverage;
+            console.log(`${yearMonth}: ${monthKPIs.length} records, Total: ${monthTotal.toFixed(2)}, Average: ${monthAverage.toFixed(2)}%`);
+          }
+        });    // Sort months chronologically and get available data
     const availableMonths = Object.keys(monthlyAverages).sort((a, b) => a.localeCompare(b));
     console.log('Available months chronologically:', availableMonths);
     
@@ -835,12 +830,15 @@ export const Dashboard = () => {
     if (!kpiBulanan || kpiBulanan.length === 0) return 0;
     
     // Get all available months and find the latest one
-    const allMonths = [...new Set(kpiBulanan.map((item: any) => item.bulan))].sort();
+    const allMonths = [...new Set(kpiBulanan.map((item: any) => `${item.tahun || 2025}-${item.bulan.toString().padStart(2, '0')}`))].sort();
     const latestMonth = allMonths[allMonths.length - 1];
     
     // Use the latest available month as current month
     let currentMonth = latestMonth || '2025-11'; // Fallback to Nov 2025 if no data
-    let currentMonthData = kpiBulanan.filter((item: any) => item.bulan === currentMonth);
+    const [year, month] = currentMonth.split('-');
+    let currentMonthData = kpiBulanan.filter((item: any) => 
+      item.bulan === month && (item.tahun || 2025).toString() === year
+    );
     
     console.log(`Using ${currentMonth} as current month for KPI calculation`);
     console.log('Available months:', allMonths);
@@ -852,11 +850,11 @@ export const Dashboard = () => {
     
     const monthlyKPI = currentMonthData.reduce((sum: number, item: any) => {
       const kpiValue = Number(item.kpiFinalDepartemen) || 0; // Use kpiFinalDepartemen from new format
-      console.log(`Adding KPI value for dept ${item.departemenId} (${item.departemen}, ${item.bulan}):`, kpiValue);
+      console.log(`Adding KPI value for dept ${item.departemenId} (${item.departemen}, bulan=${item.bulan}, tahun=${item.tahun}):`, kpiValue);
       return sum + kpiValue;
     }, 0) / currentMonthData.length;
     
-    console.log('Current Month KPI:', { month: currentMonth, departments: currentMonthData.length, average: monthlyKPI });
+    console.log('Current Month KPI:', { month: currentMonth, records: currentMonthData.length, average: monthlyKPI });
     return monthlyKPI;
   };
 
@@ -906,23 +904,28 @@ export const Dashboard = () => {
     console.log(`Filtered KPI data for ${departmentName}:`, filteredKPIData.length);
     
     // Filter for current month (November 2025)
-    const currentMonth = '2025-11';
+    const currentMonth = '11';
+    const currentYear = 2025;
     let currentMonthData = filteredKPIData.filter((item: any) => 
-      item.bulan === currentMonth
+      item.bulan === currentMonth && (item.tahun || 2025) === currentYear
     );
     
     // Fallback: if no current month data, use latest available
     if (currentMonthData.length === 0) {
       console.log(`No current month data, using latest available...`);
-      const sortedData = [...filteredKPIData].sort((a: any, b: any) => 
-        (b.bulan > a.bulan ? 1 : -1)
-      );
-      const latestMonth = sortedData[0]?.bulan;
-      if (latestMonth) {
+      const sortedData = [...filteredKPIData].sort((a: any, b: any) => {
+        const aKey = `${a.tahun || 2025}-${a.bulan.toString().padStart(2, '0')}`;
+        const bKey = `${b.tahun || 2025}-${b.bulan.toString().padStart(2, '0')}`;
+        return bKey > aKey ? 1 : -1;
+      });
+      const latestItem = sortedData[0];
+      if (latestItem) {
+        const latestMonth = latestItem.bulan;
+        const latestYear = latestItem.tahun || 2025;
         currentMonthData = filteredKPIData.filter((item: any) => 
-          item.bulan === latestMonth
+          item.bulan === latestMonth && (item.tahun || 2025) === latestYear
         );
-        console.log(`Using latest month ${latestMonth} for employee KPI`);
+        console.log(`Using latest month ${latestYear}-${latestMonth} for employee KPI`);
       }
     }
     
