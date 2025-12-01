@@ -145,12 +145,17 @@ const TrendIcon = ({ trend }: { trend: 'up' | 'down' | 'stable' }) => {
 export const Dashboard = () => {
   const { user, fetchUser } = useAuthStore();
 
+  // Get current date for default filters
+  const currentDate = new Date();
+  const currentMonth = currentDate.getMonth(); // 0-11 (December = 11)
+  const currentYear = currentDate.getFullYear();
+
   // Selection & UI state
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [selectedEmployeeDepartment, setSelectedEmployeeDepartment] = useState('Semua Departemen');
   const [selectedAttendanceDepartment, setSelectedAttendanceDepartment] = useState('Analytics');
-  const [selectedAttendanceMonth, setSelectedAttendanceMonth] = useState(10);
-  const [selectedAttendanceYear, setSelectedAttendanceYear] = useState(2025);
+  const [selectedAttendanceMonth, setSelectedAttendanceMonth] = useState(currentMonth);
+  const [selectedAttendanceYear, setSelectedAttendanceYear] = useState(currentYear);
 
   // Data states
   const [departments, setDepartments] = useState<string[]>([]);
@@ -673,7 +678,7 @@ export const Dashboard = () => {
 
   const getDepartmentsToRender = () => selectedDepartments;
 
-  // Department KPI cards - compare bulan ini (Nov 2025) vs bulan lalu (Oct 2025) using KPI-bulanan response
+  // Department KPI cards - compare bulan ini vs bulan lalu using current date
   const getDeptKpi = (dept: string) => {
     // Filter by departemen name to get departemen data from KPI-bulanan
     const deptData = (kpiBulanan || []).filter((x: any) => x.departemen === dept);
@@ -684,41 +689,95 @@ export const Dashboard = () => {
       return null;
     }
 
-    // Define target months: November 2025 (current) and October 2025 (previous)
-    const currentMonth = '11'; // November 2025 (bulan saat ini)
-    const previousMonth = '10'; // October 2025 (bulan saat ini - 1)
+    // Use current date for month calculation
+    const now = new Date();
+    const currentMonthNum = now.getMonth() + 1; // 1-12 (December = 12)
+    const currentYearNum = now.getFullYear();
+    
+    // Calculate previous month
+    const prevMonthDate = new Date(currentYearNum, currentMonthNum - 2, 1); // -2 because month is 0-indexed
+    const previousMonthNum = prevMonthDate.getMonth() + 1;
+    const previousYearNum = prevMonthDate.getFullYear();
+    
+    // Format as string for comparison (bulan uses string format "11", "12", etc.)
+    const currentMonth = currentMonthNum.toString();
+    const previousMonth = previousMonthNum.toString();
+    
+    console.log('Current Date KPI Calculation:', {
+      now: now.toISOString(),
+      currentMonth: currentMonth,
+      currentYear: currentYearNum,
+      previousMonth: previousMonth,
+      previousYear: previousYearNum
+    });
     
     // Get specific month data using the new response format
-    const currentMonthData = deptData.find((x: any) => x.bulan === currentMonth);
-    const previousMonthData = deptData.find((x: any) => x.bulan === previousMonth);
+    const currentMonthData = deptData.find((x: any) => 
+      x.bulan === currentMonth && (x.tahun || 2025) === currentYearNum
+    );
+    const previousMonthData = deptData.find((x: any) => 
+      x.bulan === previousMonth && (x.tahun || 2025) === previousYearNum
+    );
+    
+    // Fallback: if no current month data, use latest available
+    let finalCurrentData = currentMonthData;
+    let finalPreviousData = previousMonthData;
+    let usedCurrentMonth = currentMonth;
+    let usedPreviousMonth = previousMonth;
+    let usedCurrentYear = currentYearNum;
+    let usedPreviousYear = previousYearNum;
+    
+    if (!currentMonthData) {
+      console.log(`No data for current month ${currentMonth}-${currentYearNum}, finding latest...`);
+      // Sort by year-month descending
+      const sortedData = [...deptData].sort((a: any, b: any) => {
+        const aKey = `${a.tahun || 2025}-${a.bulan.toString().padStart(2, '0')}`;
+        const bKey = `${b.tahun || 2025}-${b.bulan.toString().padStart(2, '0')}`;
+        return bKey.localeCompare(aKey);
+      });
+      
+      if (sortedData.length > 0) {
+        finalCurrentData = sortedData[0];
+        usedCurrentMonth = finalCurrentData.bulan;
+        usedCurrentYear = finalCurrentData.tahun || 2025;
+        console.log(`Using latest available: ${usedCurrentYear}-${usedCurrentMonth}`);
+        
+        // Find previous month relative to latest
+        if (sortedData.length > 1) {
+          finalPreviousData = sortedData[1];
+          usedPreviousMonth = finalPreviousData.bulan;
+          usedPreviousYear = finalPreviousData.tahun || 2025;
+        }
+      }
+    }
     
     console.log(`Dept KPI Analysis - ${dept}:`, {
-      targetCurrentMonth: currentMonth,
-      targetPreviousMonth: previousMonth,
-      foundCurrentData: currentMonthData,
-      foundPreviousData: previousMonthData,
+      targetCurrentMonth: usedCurrentMonth,
+      targetPreviousMonth: usedPreviousMonth,
+      foundCurrentData: finalCurrentData,
+      foundPreviousData: finalPreviousData,
       availableMonths: deptData.map(x => `${x.tahun}-${x.bulan}`).sort(),
-      currentKpiFinalDepartemen: currentMonthData?.kpiFinalDepartemen,
-      previousKpiFinalDepartemen: previousMonthData?.kpiFinalDepartemen,
-      currentDepartemenId: currentMonthData?.departemenId,
-      previousDepartemenId: previousMonthData?.departemenId
+      currentKpiFinalDepartemen: finalCurrentData?.kpiFinalDepartemen,
+      previousKpiFinalDepartemen: finalPreviousData?.kpiFinalDepartemen,
+      currentDepartemenId: finalCurrentData?.departemenId,
+      previousDepartemenId: finalPreviousData?.departemenId
     });
     
     // Extract KPI Final Departemen using the new response format
-    const currentKPI = currentMonthData && currentMonthData.kpiFinalDepartemen !== undefined 
-      ? Number(currentMonthData.kpiFinalDepartemen) : null;
-    const previousKPI = previousMonthData && previousMonthData.kpiFinalDepartemen !== undefined 
-      ? Number(previousMonthData.kpiFinalDepartemen) : null;
-    const departemenId = currentMonthData?.departemenId || previousMonthData?.departemenId;
-    const currentAvgScorePresensi = currentMonthData ? Number(currentMonthData.avgScorePresensi) || 0 : 0;
-    const currentAvgScorePelatihan = currentMonthData ? Number(currentMonthData.avgScorePelatihan) || 0 : 0;
-    const avgIndicatorScore = currentMonthData ? Number(currentMonthData.avgIndicatorScore) || 0 : 0;
-    const avgIndicatorBobot = currentMonthData ? Number(currentMonthData.avgIndicatorBobot) || 0 : 0;
+    const currentKPI = finalCurrentData && finalCurrentData.kpiFinalDepartemen !== undefined 
+      ? Number(finalCurrentData.kpiFinalDepartemen) : null;
+    const previousKPI = finalPreviousData && finalPreviousData.kpiFinalDepartemen !== undefined 
+      ? Number(finalPreviousData.kpiFinalDepartemen) : null;
+    const departemenId = finalCurrentData?.departemenId || finalPreviousData?.departemenId;
+    const currentAvgScorePresensi = finalCurrentData ? Number(finalCurrentData.avgScorePresensi) || 0 : 0;
+    const currentAvgScorePelatihan = finalCurrentData ? Number(finalCurrentData.avgScorePelatihan) || 0 : 0;
+    const avgIndicatorScore = finalCurrentData ? Number(finalCurrentData.avgIndicatorScore) || 0 : 0;
+    const avgIndicatorBobot = finalCurrentData ? Number(finalCurrentData.avgIndicatorBobot) || 0 : 0;
     
     console.log(`Final KPI Values for ${dept}:`, {
       departemenId,
-      bulanIni: currentMonth,
-      bulanLalu: previousMonth,
+      bulanIni: usedCurrentMonth,
+      bulanLalu: usedPreviousMonth,
       kpiFinalDepartemenIni: currentKPI,
       kpiFinalDepartemenLalu: previousKPI,
       selisih: currentKPI !== null && previousKPI !== null ? currentKPI - previousKPI : null,
@@ -726,25 +785,25 @@ export const Dashboard = () => {
     });
     
     // Format month names for display
-    const formatMonth = (monthStr: string, year: number = 2025) => {
+    const formatMonth = (monthStr: string, year: number) => {
       if (!monthStr) return '';
       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      return `${monthNames[parseInt(monthStr, 10) - 1]} ${year}`;
+      const monthNum = parseInt(monthStr, 10);
+      return `${monthNames[monthNum - 1]} ${year}`;
     };
     
     return { 
-      latest: currentKPI, // kpiFinalDepartemen from November 2025 record
-      prev: previousKPI,  // kpiFinalDepartemen from October 2025 record
-      currentMonth: formatMonth(currentMonth, 2025), // Nov 2025
-      previousMonth: formatMonth(previousMonth, 2025), // Oct 2025
+      latest: currentKPI,
+      prev: previousKPI,
+      currentMonth: formatMonth(usedCurrentMonth, usedCurrentYear),
+      previousMonth: formatMonth(usedPreviousMonth, usedPreviousYear),
       departemenId,
       avgScorePresensi: currentAvgScorePresensi,
       avgScorePelatihan: currentAvgScorePelatihan,
       avgIndicatorScore,
       avgIndicatorBobot,
-      // Tambahan info untuk debugging
-      hasCurrentData: currentMonthData !== undefined,
-      hasPreviousData: previousMonthData !== undefined
+      hasCurrentData: finalCurrentData !== undefined,
+      hasPreviousData: finalPreviousData !== undefined
     };
   };
 
@@ -829,32 +888,47 @@ export const Dashboard = () => {
   const getCurrentMonthKPI = () => {
     if (!kpiBulanan || kpiBulanan.length === 0) return 0;
     
-    // Get all available months and find the latest one
-    const allMonths = [...new Set(kpiBulanan.map((item: any) => `${item.tahun || 2025}-${item.bulan.toString().padStart(2, '0')}`))].sort();
-    const latestMonth = allMonths[allMonths.length - 1];
+    console.log('Current Month KPI - Finding latest month in 2025...');
     
-    // Use the latest available month as current month
-    let currentMonth = latestMonth || '2025-11'; // Fallback to Nov 2025 if no data
-    const [year, month] = currentMonth.split('-');
-    let currentMonthData = kpiBulanan.filter((item: any) => 
-      item.bulan === month && (item.tahun || 2025).toString() === year
-    );
+    // Filter data untuk tahun 2025 saja
+    const data2025 = kpiBulanan.filter((item: any) => (item.tahun || 2025) === 2025);
     
-    console.log(`Using ${currentMonth} as current month for KPI calculation`);
-    console.log('Available months:', allMonths);
-    
-    if (currentMonthData.length === 0) {
-      console.log('No data available for current month calculation');
+    if (data2025.length === 0) {
+      console.log('No data available for year 2025');
       return 0;
     }
     
-    const monthlyKPI = currentMonthData.reduce((sum: number, item: any) => {
-      const kpiValue = Number(item.kpiFinalDepartemen) || 0; // Use kpiFinalDepartemen from new format
-      console.log(`Adding KPI value for dept ${item.departemenId} (${item.departemen}, bulan=${item.bulan}, tahun=${item.tahun}):`, kpiValue);
-      return sum + kpiValue;
-    }, 0) / currentMonthData.length;
+    // Get all available months in 2025 and sort them
+    const allMonths2025 = [...new Set(data2025.map((item: any) => 
+      item.bulan.toString().padStart(2, '0')
+    ))].sort();
     
-    console.log('Current Month KPI:', { month: currentMonth, records: currentMonthData.length, average: monthlyKPI });
+    const latestMonth2025 = allMonths2025[allMonths2025.length - 1];
+    
+    console.log('Available months in 2025:', allMonths2025);
+    console.log('Using latest month in 2025:', latestMonth2025);
+    
+    // Filter data untuk bulan terakhir di tahun 2025
+    const latestMonthData = data2025.filter((item: any) => 
+      item.bulan.toString().padStart(2, '0') === latestMonth2025
+    );
+    
+    if (latestMonthData.length === 0) {
+      console.log('No data available for latest month');
+      return 0;
+    }
+    
+    const monthlyKPI = latestMonthData.reduce((sum: number, item: any) => {
+      const kpiValue = Number(item.kpiFinalDepartemen) || 0;
+      return sum + kpiValue;
+    }, 0) / latestMonthData.length;
+    
+    console.log('Latest Month KPI Result:', { 
+      year: 2025,
+      month: latestMonth2025,
+      recordsUsed: latestMonthData.length, 
+      average: monthlyKPI 
+    });
     return monthlyKPI;
   };
 
@@ -862,8 +936,16 @@ export const Dashboard = () => {
   const getCurrentMonthAttendanceScore = () => {
     if (!attendanceRecords || attendanceRecords.length === 0) return 0;
     
-    const currentMonth = new Date().getMonth() + 1;
-    const currentYear = new Date().getFullYear();
+    // Use current date
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1; // 1-12
+    const currentYear = now.getFullYear();
+    
+    console.log('Current Month Attendance - Using date:', {
+      date: now.toISOString(),
+      month: currentMonth,
+      year: currentYear
+    });
     
     // Filter attendance records for current month/year
     const currentMonthRecords = attendanceRecords.filter(record => {
@@ -871,7 +953,10 @@ export const Dashboard = () => {
       return recordDate.getMonth() + 1 === currentMonth && recordDate.getFullYear() === currentYear;
     });
     
-    if (currentMonthRecords.length === 0) return 0;
+    if (currentMonthRecords.length === 0) {
+      console.log('No attendance records for current month');
+      return 0;
+    }
     
     // Calculate attendance score (Present/Total * 100)
     const totalRecords = currentMonthRecords.length;
@@ -879,7 +964,14 @@ export const Dashboard = () => {
       record.status === 'HADIR' || record.status === 'TERLAMBAT'
     ).length;
     
-    return Math.round((presentRecords / totalRecords) * 100);
+    const score = Math.round((presentRecords / totalRecords) * 100);
+    console.log('Attendance Score:', {
+      total: totalRecords,
+      present: presentRecords,
+      score
+    });
+    
+    return score;
   };
 
 
@@ -903,16 +995,19 @@ export const Dashboard = () => {
     
     console.log(`Filtered KPI data for ${departmentName}:`, filteredKPIData.length);
     
-    // Filter for current month (November 2025)
-    const currentMonth = '11';
-    const currentYear = 2025;
+    // Use current date for filtering
+    const now = new Date();
+    const currentMonthNum = now.getMonth() + 1; // 1-12
+    const currentYearNum = now.getFullYear();
+    const currentMonthStr = currentMonthNum.toString();
+    
     let currentMonthData = filteredKPIData.filter((item: any) => 
-      item.bulan === currentMonth && (item.tahun || 2025) === currentYear
+      item.bulan === currentMonthStr && (item.tahun || 2025) === currentYearNum
     );
     
     // Fallback: if no current month data, use latest available
     if (currentMonthData.length === 0) {
-      console.log(`No current month data, using latest available...`);
+      console.log(`No employee data for current month ${currentMonthStr}-${currentYearNum}, using latest...`);
       const sortedData = [...filteredKPIData].sort((a: any, b: any) => {
         const aKey = `${a.tahun || 2025}-${a.bulan.toString().padStart(2, '0')}`;
         const bKey = `${b.tahun || 2025}-${b.bulan.toString().padStart(2, '0')}`;
