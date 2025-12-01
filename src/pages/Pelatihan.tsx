@@ -64,7 +64,7 @@ export const Pelatihan = () => {
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [showScoreDialog, setShowScoreDialog] = useState(false);
   const [selectedParticipant, setSelectedParticipant] = useState<any>(null);
-  const [scoreForm, setScoreForm] = useState({ skor: '', catatan: '' });
+  const [scoreForm, setScoreForm] = useState({ skor: '', catatan: '', periodeYear: new Date().getFullYear(), periodeMonth: new Date().getMonth() + 1 });
   const [scoreSubmitting, setScoreSubmitting] = useState(false);
 
   const fetchForHR = async () => {
@@ -161,7 +161,9 @@ export const Pelatihan = () => {
     setSelectedParticipant(participant);
     setScoreForm({ 
       skor: participant.skor !== null ? participant.skor.toString() : '', 
-      catatan: participant.catatan || '' 
+      catatan: participant.catatan || '',
+      periodeYear: participant.periodeYear || new Date().getFullYear(),
+      periodeMonth: participant.periodeMonth || new Date().getMonth() + 1
     });
     setShowScoreDialog(true);
     setError(''); // Clear any previous errors
@@ -170,7 +172,7 @@ export const Pelatihan = () => {
   const handleCloseScoreDialog = () => {
     setShowScoreDialog(false);
     setSelectedParticipant(null);
-    setScoreForm({ skor: '', catatan: '' });
+    setScoreForm({ skor: '', catatan: '', periodeYear: new Date().getFullYear(), periodeMonth: new Date().getMonth() + 1 });
     setError(''); // Clear any previous errors
   };
 
@@ -197,7 +199,12 @@ export const Pelatihan = () => {
       await pelatihanAPI.updateScore(
         selectedPelatihan.id,
         selectedParticipant.karyawan.id,
-        { skor: skorNum, catatan: scoreForm.catatan || undefined }
+        { 
+          skor: skorNum, 
+          catatan: scoreForm.catatan || undefined,
+          periodeYear: scoreForm.periodeYear,
+          periodeMonth: scoreForm.periodeMonth
+        }
       );
       
       // Refresh detail
@@ -456,6 +463,40 @@ export const Pelatihan = () => {
                   onChange={(e) => setScoreForm({ ...scoreForm, catatan: e.target.value })}
                   placeholder="Catatan tambahan"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="periodeYear">Periode Tahun</Label>
+                  <Input
+                    id="periodeYear"
+                    type="number"
+                    min="2000"
+                    max="2100"
+                    value={scoreForm.periodeYear}
+                    onChange={(e) => setScoreForm({ ...scoreForm, periodeYear: parseInt(e.target.value) })}
+                    placeholder="2024"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Untuk perhitungan KPI bulanan
+                  </p>
+                </div>
+
+                <div>
+                  <Label htmlFor="periodeMonth">Periode Bulan (1-12)</Label>
+                  <Input
+                    id="periodeMonth"
+                    type="number"
+                    min="1"
+                    max="12"
+                    value={scoreForm.periodeMonth}
+                    onChange={(e) => setScoreForm({ ...scoreForm, periodeMonth: parseInt(e.target.value) })}
+                    placeholder="1-12"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Untuk perhitungan KPI bulanan
+                  </p>
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 mt-6">

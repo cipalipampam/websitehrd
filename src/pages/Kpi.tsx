@@ -60,11 +60,15 @@ interface KpiDetailFormData {
   indikatorId: string;
   target: string;
   realisasi: string;
+  periodeYear?: number;
+  periodeMonth?: number;
 }
 
 interface FormData {
   karyawanId: string;
   year: string;
+  periodeYear?: number;
+  periodeMonth?: number;
   kpiDetails: KpiDetailFormData[];
 }
 
@@ -118,6 +122,8 @@ export const Kpi = () => {
   const [formData, setFormData] = useState<FormData>({
     karyawanId: '',
     year: new Date().getFullYear().toString(),
+    periodeYear: new Date().getFullYear(),
+    periodeMonth: new Date().getMonth() + 1,
     kpiDetails: [],
   });
   const [submitting, setSubmitting] = useState(false);
@@ -355,6 +361,8 @@ export const Kpi = () => {
     setFormData({
       karyawanId: '',
       year: new Date().getFullYear().toString(),
+      periodeYear: new Date().getFullYear(),
+      periodeMonth: new Date().getMonth() + 1,
       kpiDetails: [],
     });
   };
@@ -403,10 +411,14 @@ export const Kpi = () => {
       const submitData = {
         karyawanId: formData.karyawanId,
         year: parseInt(formData.year),
+        periodeYear: formData.periodeYear,
+        periodeMonth: formData.periodeMonth,
         kpiDetails: formData.kpiDetails.map((detail) => ({
           indikatorId: detail.indikatorId,
           target: parseFloat(detail.target),
           realisasi: detail.realisasi ? parseFloat(detail.realisasi) : undefined,
+          periodeYear: detail.periodeYear || formData.periodeYear,
+          periodeMonth: detail.periodeMonth || formData.periodeMonth,
         })),
       };
 
@@ -789,6 +801,50 @@ export const Kpi = () => {
                     }
                     disabled={submitting}
                   />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="periodeYear">
+                    Periode Tahun (untuk perhitungan KPI)
+                  </Label>
+                  <Input
+                    id="periodeYear"
+                    type="number"
+                    min="2000"
+                    max="2100"
+                    placeholder="2024"
+                    value={formData.periodeYear || ''}
+                    onChange={(e) =>
+                      setFormData({ ...formData, periodeYear: e.target.value ? parseInt(e.target.value) : undefined })
+                    }
+                    disabled={submitting}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Kosongkan untuk menggunakan waktu input otomatis
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="periodeMonth">
+                    Periode Bulan (1-12)
+                  </Label>
+                  <Input
+                    id="periodeMonth"
+                    type="number"
+                    min="1"
+                    max="12"
+                    placeholder="1-12"
+                    value={formData.periodeMonth || ''}
+                    onChange={(e) =>
+                      setFormData({ ...formData, periodeMonth: e.target.value ? parseInt(e.target.value) : undefined })
+                    }
+                    disabled={submitting}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Kosongkan untuk menggunakan waktu input otomatis
+                  </p>
                 </div>
               </div>
 
