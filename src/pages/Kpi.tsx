@@ -696,18 +696,23 @@ export const Kpi = () => {
   const openUpdateDetailDialog = async (kpi: KpiType) => {
     setEditingKpiForUpdate(kpi);
     
-    console.log('Opening update dialog with KPI:', kpi);
-    console.log('KPI Details:', kpi.kpiDetails);
-    const uniqueDetails = (kpi.kpiDetails || []).filter((detail, idx, arr) => {
-      const firstIndex = arr.findIndex((d: any) => d.id === detail.id);
-      if (firstIndex !== idx) {
-        console.warn('Duplicate KPI detail detected, skipping:', detail);
-      }
-      return firstIndex === idx;
-    });
-
-    const mappedDetails = uniqueDetails.map((d: any) => {
-      console.log('Mapping detail:', d);
+    console.log('=== Opening update dialog with KPI ===');
+    console.log('KPI ID:', kpi.id);
+    console.log('KPI Year:', kpi.year);
+    console.log('KPI kpiDetails count:', kpi.kpiDetails?.length || 0);
+    console.log('KPI Details RAW:', JSON.parse(JSON.stringify(kpi.kpiDetails)));
+    
+    // Map all details without filtering duplicates (backend should ensure uniqueness)
+    const mappedDetails = (kpi.kpiDetails || []).map((d: any) => {
+      console.log('Mapping detail:', {
+        id: d.id,
+        indikatorId: d.indikatorId,
+        indikatorNama: d.indikator?.nama,
+        target: d.target,
+        realisasi: d.realisasi,
+        periodeYear: d.periodeYear,
+        periodeMonth: d.periodeMonth
+      });
       return {
         id: d.id,
         indikatorId: d.indikatorId,
@@ -718,6 +723,7 @@ export const Kpi = () => {
       };
     });
     
+    console.log('Mapped details count:', mappedDetails.length);
     console.log('Mapped details:', mappedDetails);
     
     setFormData({
@@ -751,76 +757,60 @@ export const Kpi = () => {
     }
 
     // Validate all details have required fields
-    const invalidDetails = formData.kpiDetails.filter(d => !d.target || d.target.trim() === '');
+    const invalidDetails = formData.kpiDetails.filter(d => !d.indikatorId || !d.target || d.target.trim() === '');
     if (invalidDetails.length > 0) {
-      showAlert('error', 'Target wajib diisi untuk semua indikator');
+      showAlert('error', 'Indikator dan Target wajib diisi untuk semua detail');
       return;
     }
 
     try {
       setSubmitting(true);
-      let successCount = 0;
-      let errorCount = 0;
-      const errors: string[] = [];
 
-      // Update each KPI detail
-      for (const detail of formData.kpiDetails) {
-        const detailId = (detail as any).id;
-        
-        if (!detailId) {
-          console.warn('Skipping detail without ID:', detail);
-          errorCount++;
-          errors.push('Detail tanpa ID ditemukan');
-          continue;
+      console.log('=== Updating KPI with details ===');
+      console.log('KPI ID:', editingKpiForUpdate.id);
+      console.log('Details count:', formData.kpiDetails.length);
+      console.log('Details:', formData.kpiDetails);
+
+      // Prepare payload for PUT /api/kpi/kpi/:id
+      // This endpoint will delete old details and create new ones
+      const fallbackYear = formData.periodeYear ?? new Date().getFullYear();
+      const fallbackMonth = formData.periodeMonth ?? new Date().getMonth() + 1;
+
+      const mappedDetails = formData.kpiDetails.map((d) => {
+        const payload: any = {
+          id: (d as any).id, // Include ID if exists (for tracking)
+          indikatorId: d.indikatorId,
+          target: parseFloat(d.target),
+          periodeYear: d.periodeYear ?? fallbackYear,
+          periodeMonth: d.periodeMonth ?? fallbackMonth,
+        };
+
+        if (d.realisasi && d.realisasi.trim() !== '') {
+          payload.realisasi = parseFloat(d.realisasi);
         }
 
-        try {
-          const detailData: any = {
-            target: parseFloat(detail.target),
-          };
+        return payload;
+      });
 
-          // Only include realisasi if it has a value
-          if (detail.realisasi && detail.realisasi.trim() !== '') {
-            detailData.realisasi = parseFloat(detail.realisasi);
-          }
+      console.log('Mapped details to send:', mappedDetails);
 
-          // Only include periodeYear if it has a value
-          if (detail.periodeYear !== undefined && detail.periodeYear !== null) {
-            detailData.periodeYear = detail.periodeYear;
-          }
+      const updatePayload = {
+        year: parseInt(formData.year, 10),
+        periodeYear: fallbackYear,
+        periodeMonth: fallbackMonth,
+        kpiDetails: mappedDetails,
+      };
 
-          // Only include periodeMonth if it has a value
-          if (detail.periodeMonth !== undefined && detail.periodeMonth !== null) {
-            detailData.periodeMonth = detail.periodeMonth;
-          }
+      console.log('Update payload:', updatePayload);
 
-          console.log('Updating detail ID:', detailId, 'with data:', detailData);
-          const response = await kpiAPI.updateDetail(detailId, detailData);
-          console.log('Update response:', response);
-          successCount++;
-        } catch (detailError) {
-          errorCount++;
-          const indicator = indicators.find(ind => ind.id === detail.indikatorId);
-          const errorMsg = detailError instanceof AxiosError
-            ? detailError.response?.data?.message || 'Gagal update'
-            : 'Gagal update';
-          errors.push(`${indicator?.nama || 'Indikator'}: ${errorMsg}`);
-          console.error('Error updating detail ID:', detailId, detailError);
-        }
-      }
+      // Send update request
+      const response = await kpiAPI.update(editingKpiForUpdate.id, updatePayload);
+      console.log('Update response:', response);
 
-      if (errorCount === 0) {
-        showAlert('success', `Semua ${successCount} detail KPI berhasil diupdate`);
-        handleCloseUpdateDetailDialog();
-        fetchKpi();
-        fetchMonthlyKpi();
-      } else if (successCount > 0) {
-        showAlert('error', `${successCount} berhasil, ${errorCount} gagal. ${errors.join('; ')}`);
-        fetchKpi();
-        fetchMonthlyKpi();
-      } else {
-        showAlert('error', `Gagal update semua detail: ${errors.join('; ')}`);
-      }
+      showAlert('success', `KPI berhasil diupdate dengan ${mappedDetails.length} detail indikator`);
+      handleCloseUpdateDetailDialog();
+      fetchKpi();
+      fetchMonthlyKpi();
     } catch (error) {
       console.error('Update details error:', error);
       const errorMessage =
@@ -847,8 +837,27 @@ export const Kpi = () => {
         const res = await kpiAPI.getById(monthlyKpi.kpiId);
         setMonthlyKpiDetail(res.data);
       } else {
-        // if no kpiId provided, keep minimal / empty details
-        setMonthlyKpiDetail({ kpiDetails: [] });
+        // Try to resolve KPI id by matching karyawan + period (fallback)
+        const monthNumber = parseInt(monthlyKpi.bulan, 10);
+        const resolved = kpiList.find((kpi) => {
+          const sameEmployee = kpi.karyawanId === monthlyKpi.karyawanId;
+          const sameYear = (kpi.periodeYear ?? kpi.year) === monthlyKpi.tahun;
+          const sameMonth = (kpi.periodeMonth ?? monthNumber) === monthNumber;
+          return sameEmployee && sameYear && sameMonth;
+        });
+
+        if (resolved && resolved.id) {
+          try {
+            const res = await kpiAPI.getById(resolved.id);
+            setMonthlyKpiDetail(res.data);
+          } catch (err) {
+            console.error('Error fetching resolved KPI by ID:', err);
+            setMonthlyKpiDetail({ kpiDetails: [] });
+          }
+        } else {
+          // if no KPI found, keep minimal / empty details
+          setMonthlyKpiDetail({ kpiDetails: [] });
+        }
       }
       setMonthlyDetailDialogOpen(true);
     } catch (error) {
@@ -1613,7 +1622,27 @@ export const Kpi = () => {
               )}
 
               <div className="space-y-4">
-                <Label className="text-lg font-semibold">Detail Indikator KPI</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-lg font-semibold">Detail Indikator KPI</Label>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => {
+                      const newDetails = [...formData.kpiDetails, { 
+                        indikatorId: '', 
+                        target: '', 
+                        realisasi: '',
+                        periodeYear: formData.periodeYear,
+                        periodeMonth: formData.periodeMonth
+                      }];
+                      setFormData({ ...formData, kpiDetails: newDetails });
+                    }} 
+                    disabled={submitting}
+                  >
+                    <Plus className="h-4 w-4 mr-2" /> Tambah Indikator
+                  </Button>
+                </div>
 
                 {formData.kpiDetails.map((detail, index) => {
                   const indicator = indicators.find(ind => ind.id === detail.indikatorId);
@@ -1621,14 +1650,51 @@ export const Kpi = () => {
                     <Card key={index}>
                       <CardContent className="pt-6">
                         <div className="space-y-4">
-                          <div className="flex items-center justify-between">
-                            <div>
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
                               <Label className="text-base font-semibold">{indicator?.nama || 'Indikator'}</Label>
                               <p className="text-sm text-gray-500">{indicator?.deskripsi || ''}</p>
                               <Badge variant="secondary" className="mt-1">
                                 Bobot: {indicator?.bobot ? (indicator.bobot * 100).toFixed(0) + '%' : '-'}
                               </Badge>
                             </div>
+                            <Button 
+                              type="button" 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => {
+                                const newDetails = [...formData.kpiDetails];
+                                newDetails.splice(index, 1);
+                                setFormData({ ...formData, kpiDetails: newDetails });
+                              }} 
+                              disabled={submitting}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Indikator <span className="text-red-500">*</span></Label>
+                            <Select
+                              value={detail.indikatorId}
+                              onValueChange={(value) => {
+                                const newDetails = [...formData.kpiDetails];
+                                newDetails[index] = { ...newDetails[index], indikatorId: value };
+                                setFormData({ ...formData, kpiDetails: newDetails });
+                              }}
+                              disabled={submitting}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Pilih indikator" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {filteredIndicators.map((indicator) => (
+                                  <SelectItem key={indicator.id} value={indicator.id}>
+                                    {indicator.nama} ({(indicator.bobot * 100).toFixed(0)}%)
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
 
                           <div className="grid grid-cols-2 gap-4">
