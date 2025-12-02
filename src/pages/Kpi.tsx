@@ -994,11 +994,11 @@ export const Kpi = () => {
                       <TableHead>Tahun</TableHead>
                       <TableHead>Bulan</TableHead>
                       <TableHead>Score Presensi</TableHead>
-                      <TableHead>Bobot Presensi</TableHead>
+                      {/* <TableHead>Bobot Presensi</TableHead> */}
                       <TableHead>Score Pelatihan</TableHead>
-                      <TableHead>Bobot Pelatihan</TableHead>
-                      <TableHead>Total Bobot Indikator Lain</TableHead>
-                      <TableHead>Total Score Indikator Lain</TableHead>
+                      {/* <TableHead>Bobot Pelatihan</TableHead> */}
+                      {/* <TableHead>Total Bobot Indikator Lain</TableHead> */}
+                      {/* <TableHead>Total Score Indikator Lain</TableHead> */}
                       <TableHead>KPI Indikator Lain</TableHead>
                       <TableHead>KPI Final</TableHead>
                       <TableHead>Performance</TableHead>
@@ -1016,11 +1016,11 @@ export const Kpi = () => {
                           <TableCell>{monthlyKpi.tahun}</TableCell>
                           <TableCell>{getMonthName(monthlyKpi.bulan)}</TableCell>
                           <TableCell><Badge variant="secondary">{monthlyKpi.scorePresensi}%</Badge></TableCell>
-                          <TableCell><Badge variant="outline">{monthlyKpi.bobotPresensi}%</Badge></TableCell>
+                          {/* <TableCell><Badge variant="outline">{monthlyKpi.bobotPresensi}%</Badge></TableCell> */}
                           <TableCell><Badge variant="secondary">{monthlyKpi.scorePelatihan}%</Badge></TableCell>
-                          <TableCell><Badge variant="outline">{monthlyKpi.bobotPelatihan}%</Badge></TableCell>
-                          <TableCell><Badge variant="outline">{monthlyKpi.totalBobotIndikatorLain}</Badge></TableCell>
-                          <TableCell><Badge variant="secondary">{monthlyKpi.totalScoreIndikatorLain.toFixed(2)}</Badge></TableCell>
+                          {/* <TableCell><Badge variant="outline">{monthlyKpi.bobotPelatihan}%</Badge></TableCell> */}
+                          {/* <TableCell><Badge variant="outline">{monthlyKpi.totalBobotIndikatorLain}</Badge></TableCell> */}
+                          {/* <TableCell><Badge variant="secondary">{monthlyKpi.totalScoreIndikatorLain.toFixed(2)}</Badge></TableCell> */}
                           <TableCell><Badge className="bg-purple-500">{monthlyKpi.kpiIndikatorLain.toFixed(2)}</Badge></TableCell>
                           <TableCell><Badge className={getScoreColor(monthlyKpi.kpiFinal)}>{monthlyKpi.kpiFinal.toFixed(2)}</Badge></TableCell>
                           <TableCell><Badge className={performance.color}>{performance.level}</Badge></TableCell>
