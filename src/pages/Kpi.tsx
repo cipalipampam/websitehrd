@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Sidebar } from '../components/Sidebar';
-import { kpiAPI, kpiIndicatorAPI, karyawanAPI } from '../services/api';
+import { kpiAPI, kpiIndicatorAPI, karyawanAPI, departemenAPI } from '../services/api';
 import type { Kpi as KpiType, KpiIndicator } from '../types/kpi';
 import type { Karyawan } from '../types/karyawan';
+import type { KpiBulanan, KpiBulananResponse } from '../types/kpi';
 import {
   Card,
   CardContent,
@@ -41,7 +42,6 @@ import { Badge } from '../components/ui/badge';
 import {
   Plus,
   Pencil,
-  Trash2,
   Loader2,
   AlertCircle,
   CheckCircle2,
@@ -57,6 +57,7 @@ interface AlertState {
 }
 
 interface KpiDetailFormData {
+  id?: string;
   indikatorId: string;
   target: string;
   realisasi: string;
@@ -72,53 +73,66 @@ interface FormData {
   kpiDetails: KpiDetailFormData[];
 }
 
-// Monthly KPI interfaces based on new API response structure
-interface MonthlyKpiData {
-  karyawanId: string; // "0d0d6784-2e57-49b8-81ef-979586f7db0a"
-  kpiId?: string; // KPI ID for detail API
-  namaKaryawan: string; // "Sarah Johnson"
-  departemenId: string; // "cbe52d63-6932-4da3-9e90-35bfb3a29d04"
-  departemen: string; // "HR"
-  tahun: number; // 2025
-  bulan: string; // "11"
-  scorePresensi: string; // "97.5"
-  scorePelatihan: number; // 95
-  bobotPresensi: number; // 60
-  bobotPelatihan: number; // 40
-  totalBobotIndikatorLain: number; // 10
-  totalScoreIndikatorLain: number; // 1002.6315405009723
-  kpiFinal?: number; // Optional since it might not be in all responses
-}
-
-interface FilterParams {
+interface MonthlyFilterParams {
   bulan: string;
+  tahun: string;
   departemenId: string;
-  year: number;
 }
 
 export const Kpi = () => {
+  // core lists
   const [kpiList, setKpiList] = useState<KpiType[]>([]);
-  const [monthlyKpiList, setMonthlyKpiList] = useState<MonthlyKpiData[]>([]);
+  const [monthlyKpiList, setMonthlyKpiList] = useState<KpiBulanan[]>([]);
+  const [rawMonthlyKpiList, setRawMonthlyKpiList] = useState<KpiBulanan[]>([]);
   const [karyawan, setKaryawan] = useState<Karyawan[]>([]);
   const [indicators, setIndicators] = useState<KpiIndicator[]>([]);
+  const [departmentOptions, setDepartmentOptions] = useState<{ id: string; name: string }[]>([]);
+  const [monthlyFilters, setMonthlyFilters] = useState<MonthlyFilterParams>({
+    bulan: 'all',
+    tahun: 'all',
+    departemenId: 'all',
+  });
+  const monthOptions = [
+    { value: '1', label: 'Januari' },
+    { value: '2', label: 'Februari' },
+    { value: '3', label: 'Maret' },
+    { value: '4', label: 'April' },
+    { value: '5', label: 'Mei' },
+    { value: '6', label: 'Juni' },
+    { value: '7', label: 'Juli' },
+    { value: '8', label: 'Agustus' },
+    { value: '9', label: 'September' },
+    { value: '10', label: 'Oktober' },
+    { value: '11', label: 'November' },
+    { value: '12', label: 'Desember' },
+  ];
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from({ length: 10 }, (_, idx) => (currentYear - idx).toString());
+
+  // loading / UI states
   const [loading, setLoading] = useState(true);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
-  // State untuk popup detail bulanan
-  const [monthlyDetailDialogOpen, setMonthlyDetailDialogOpen] = useState(false);
-  const [selectedMonthlyKpi, setSelectedMonthlyKpi] = useState<MonthlyKpiData | null>(null);
-  const [monthlyKpiDetail, setMonthlyKpiDetail] = useState<any | null>(null);
-  // Removed viewMode - only monthly view is available
-  const [filterParams, setFilterParams] = useState<FilterParams>({
-    bulan: '11', // November 2025
-    departemenId: 'all', // Use 'all' instead of empty string
-    year: 2025
-  });
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // dialog & selection states
+  const [isDialogOpen, setIsDialogOpen] = useState(false); // create/edit
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false); // view KPI detail (yearly)
+  const [monthlyDetailDialogOpen, setMonthlyDetailDialogOpen] = useState(false); // monthly UI popup
+  const [isUpdateDetailDialogOpen, setIsUpdateDetailDialogOpen] = useState(false); // update KPI details
+  const [isDirectDetailUpdateOpen, setIsDirectDetailUpdateOpen] = useState(false); // direct detail update
+
   const [editingKpi, setEditingKpi] = useState<KpiType | null>(null);
   const [viewingKpi, setViewingKpi] = useState<KpiType | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingKpiForUpdate, setEditingKpiForUpdate] = useState<KpiType | null>(null);
+  const [editingDetailId, setEditingDetailId] = useState<string | null>(null);
+  const [editingMonthlyKpi, setEditingMonthlyKpi] = useState<KpiBulanan | null>(null);
+
+  // monthly detail
+  const [selectedMonthlyKpi, setSelectedMonthlyKpi] = useState<KpiBulanan | null>(null);
+  const [monthlyKpiDetail, setMonthlyKpiDetail] = useState<any | null>(null); // kpiAPI.getById response if exists
+
   const [formData, setFormData] = useState<FormData>({
     karyawanId: '',
     year: new Date().getFullYear().toString(),
@@ -126,7 +140,14 @@ export const Kpi = () => {
     periodeMonth: new Date().getMonth() + 1,
     kpiDetails: [],
   });
-  const [submitting, setSubmitting] = useState(false);
+
+  const [directDetailForm, setDirectDetailForm] = useState({
+    target: '',
+    realisasi: '',
+    periodeYear: new Date().getFullYear(),
+    periodeMonth: new Date().getMonth() + 1,
+  });
+
   const [alert, setAlert] = useState<AlertState>({
     show: false,
     type: 'success',
@@ -135,16 +156,17 @@ export const Kpi = () => {
 
   const showAlert = (type: 'success' | 'error', message: string) => {
     setAlert({ show: true, type, message });
-    setTimeout(() => {
-      setAlert({ show: false, type: 'success', message: '' });
-    }, 5000);
+    setTimeout(() => setAlert((s) => ({ ...s, show: false })), 5000);
   };
+
+  /* -------------------------
+     Fetch functions (clean)
+     ------------------------- */
 
   const fetchKpi = async () => {
     try {
       setLoading(true);
       const response = await kpiAPI.getAll();
-      console.log('Fetched KPI:', response.data);
       setKpiList(response.data);
     } catch (error) {
       const errorMessage =
@@ -175,151 +197,106 @@ export const Kpi = () => {
     }
   };
 
-  const fetchMonthlyKpi = async (params: Partial<FilterParams> = {}) => {
+  const fetchDepartments = async () => {
+    try {
+      const response = await departemenAPI.getAll();
+      const deptList = (response.data || []).map((dept: any) => ({
+        id: dept.id,
+        name: dept.nama,
+      }));
+      setDepartmentOptions(deptList);
+    } catch (error) {
+      console.error('Error fetching departemen:', error);
+    }
+  };
+
+  /**
+   * Fetch monthly KPI view (full dataset) and apply filters locally.
+   * Assumes API returns { status, message, data: KpiBulanan[] }
+   */
+  const fetchMonthlyKpi = async () => {
     try {
       setMonthlyLoading(true);
-      
-      console.log('=== KPI FETCH START ===');
-      console.log('Filter params:', filterParams);
-      console.log('Input params:', params);
-      
-      const bulanValue = params.bulan || filterParams.bulan;
-      const yearValue = params.year || filterParams.year;
-      
-      const finalParams = {
-        bulan: `${yearValue}-${bulanValue.padStart(2, '0')}`, // Format to YYYY-MM
-        departemenId: (params.departemenId || filterParams.departemenId) !== 'all' 
-          ? (params.departemenId || filterParams.departemenId)
-          : undefined
-      };
-      
-      console.log('Final API params:', finalParams);
-      console.log('Calling kpiAPI.getBulanan with params:', finalParams);
-      
-      const response = await karyawanAPI.getKpiBulanan(finalParams);
-      console.log('API call successful, response received:', response);
-      console.log('=== PROCESSING RESPONSE ===');
-      console.log('Raw API response:', response);
-      console.log('Response type:', typeof response);
-      console.log('Is response array:', Array.isArray(response));
-      
-      // Process the response - expecting direct array based on your JSON structure
-      let processedData: MonthlyKpiData[] = [];
-      
-      if (Array.isArray(response) && response.length > 0) {
-        console.log('Processing response array with', response.length, 'items');
-        console.log('First item keys:', Object.keys(response[0]));
-        console.log('Sample item:', response[0]);
-        
-        processedData = response.map((item: any) => {
-          return {
-            karyawanId: item.karyawanId || '',
-            kpiId: item.kpiId || item.id || undefined, // Try kpiId or id
-            namaKaryawan: item.namaKaryawan || '',
-            departemenId: item.departemenId || '',
-            departemen: item.departemen || '',
-            tahun: Number(item.tahun || new Date().getFullYear()),
-            bulan: String(item.bulan || ''),
-            scorePresensi: String(item.scorePresensi || '0'),
-            scorePelatihan: Number(item.scorePelatihan || 0),
-            bobotPresensi: Number(item.bobotPresensi || 0),
-            bobotPelatihan: Number(item.bobotPelatihan || 0),
-            totalBobotIndikatorLain: Number(item.totalBobotIndikatorLain || 0),
-            totalScoreIndikatorLain: Number(item.totalScoreIndikatorLain || 0),
-            kpiFinal: Number(item.kpiFinal || 0)
-          };
+
+      const response = await karyawanAPI.getKpiBulanan();
+
+      const processedData: KpiBulanan[] = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.data)
+        ? response.data
+        : [];
+
+      const normalizedData = processedData.map((item) => ({
+        ...item,
+        scorePresensi: item.scorePresensi?.toString() ?? '0',
+        scorePelatihan: typeof item.scorePelatihan === 'string' ? parseFloat(item.scorePelatihan) : item.scorePelatihan ?? 0,
+        bobotPresensi: typeof item.bobotPresensi === 'string' ? parseFloat(item.bobotPresensi) : item.bobotPresensi ?? 0,
+        bobotPelatihan: typeof item.bobotPelatihan === 'string' ? parseFloat(item.bobotPelatihan) : item.bobotPelatihan ?? 0,
+        totalBobotIndikatorLain: typeof item.totalBobotIndikatorLain === 'string' ? parseFloat(item.totalBobotIndikatorLain) : item.totalBobotIndikatorLain ?? 0,
+        totalScoreIndikatorLain: typeof item.totalScoreIndikatorLain === 'string' ? parseFloat(item.totalScoreIndikatorLain) : item.totalScoreIndikatorLain ?? 0,
+        kpiIndikatorLain: typeof item.kpiIndikatorLain === 'string' ? parseFloat(item.kpiIndikatorLain) : item.kpiIndikatorLain ?? 0,
+        kpiFinal: typeof item.kpiFinal === 'string' ? parseFloat(item.kpiFinal) : item.kpiFinal ?? 0,
+      }));
+
+      console.log('Setting monthly KPI list:', normalizedData);
+      setRawMonthlyKpiList(normalizedData);
+      setMonthlyKpiList(applyMonthlyFilters(normalizedData, monthlyFilters));
+
+      const uniqueDepartments = Array.from(
+        new Map(
+          processedData
+            .filter((item) => item.departemen && item.departemenId)
+            .map((item) => {
+              const deptId = String(item.departemenId);
+              return [deptId, { id: deptId, name: item.departemen as string }];
+            })
+        ).values()
+      );
+      setDepartmentOptions((prev) => {
+        const map = new Map<string, { id: string; name: string }>();
+        [...prev, ...uniqueDepartments].forEach((dept) => {
+          if (dept?.id) {
+            map.set(dept.id, dept);
+          }
         });
-      } else if (response && !Array.isArray(response)) {
-        console.log('Response is not an array. Full structure:', JSON.stringify(response, null, 2));
-        // Check if there's a data property or other wrapper
-        if (response.data && Array.isArray(response.data)) {
-          console.log('Found data array in response.data');
-          processedData = response.data.map((item: any) => ({
-            karyawanId: item.karyawanId || '',
-            namaKaryawan: item.namaKaryawan || '',
-            departemenId: item.departemenId || '',
-            departemen: item.departemen || '',
-            tahun: Number(item.tahun || new Date().getFullYear()),
-            bulan: String(item.bulan || ''),
-            scorePresensi: String(item.scorePresensi || '0'),
-            scorePelatihan: Number(item.scorePelatihan || 0),
-            bobotPresensi: Number(item.bobotPresensi || 0),
-            bobotPelatihan: Number(item.bobotPelatihan || 0),
-            totalBobotIndikatorLain: Number(item.totalBobotIndikatorLain || 0),
-            totalScoreIndikatorLain: Number(item.totalScoreIndikatorLain || 0),
-            kpiFinal: Number(item.kpiFinal || 0)
-          }));
-        } else {
-          processedData = [];
-        }
-      } else {
-        console.log('Empty or null response received');
-        processedData = [];
-      }
-      
-      console.log('=== FINAL PROCESSING ===');
-      console.log('Processed monthly KPI data:', processedData);
-      console.log('Sample processed item:', processedData[0]);
-      console.log('Data structure check:', {
-        totalRecords: processedData.length,
-        hasKaryawanId: processedData.filter(item => item.karyawanId).length,
-        hasNamaKaryawan: processedData.filter(item => item.namaKaryawan).length,
-        kpiFinalRange: processedData.map(item => item.kpiFinal),
-        scorePresensiValues: processedData.map(item => item.scorePresensi)
+        return Array.from(map.values());
       });
-      setMonthlyKpiList(processedData);
-      console.log('Monthly KPI state updated with', processedData.length, 'items');
     } catch (error) {
-      console.error('=== API ERROR ===');
       console.error('Error fetching monthly KPI:', error);
-      console.error('Error details:', {
-        message: (error as any).message,
-        status: (error as any).response?.status,
-        statusText: (error as any).response?.statusText,
-        data: (error as any).response?.data,
-        config: {
-          url: (error as any).config?.url,
-          method: (error as any).config?.method,
-          baseURL: (error as any).config?.baseURL
-        }
-      });
-      
-      setMonthlyKpiList([]);
-      const errorMessage =
-        error instanceof AxiosError
-          ? `API Error (${error.response?.status}): ${error.response?.data?.message || error.message || 'Gagal memuat data KPI bulanan'}`
-          : `Error: ${(error as any).message || 'Gagal memuat data KPI bulanan'}`;
-      showAlert('error', errorMessage);
+      showAlert('error', 'Gagal memuat data KPI bulanan');
     } finally {
       setMonthlyLoading(false);
     }
   };
 
+
+  /* -------------------------
+     Lifecycle
+     ------------------------- */
+
   useEffect(() => {
     fetchKpi();
     fetchKaryawan();
     fetchIndicators();
+    fetchDepartments();
+    fetchMonthlyKpi();
   }, []);
 
   useEffect(() => {
-    fetchMonthlyKpi();
-  }, [filterParams]);
+    setMonthlyKpiList(applyMonthlyFilters(rawMonthlyKpiList, monthlyFilters));
+  }, [rawMonthlyKpiList, monthlyFilters]);
 
-  const handleFilterChange = (key: keyof FilterParams, value: string | number) => {
-    const newParams = {
-      ...filterParams,
-      [key]: value
-    };
-    setFilterParams(newParams);
-    fetchMonthlyKpi(newParams);
-  };
+  /* -------------------------
+     Handlers & helpers
+     ------------------------- */
 
   const getMonthName = (monthNumber: string) => {
     const months = [
       'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
       'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
     ];
-    return months[parseInt(monthNumber) - 1] || monthNumber;
+    const idx = parseInt(monthNumber, 10) - 1;
+    return months[idx] ?? monthNumber;
   };
 
   const getPerformanceLevel = (score: number) => {
@@ -330,25 +307,103 @@ export const Kpi = () => {
     return { level: 'Needs Improvement', color: 'bg-red-500' };
   };
 
+  const getScoreColor = (score: number) => {
+    if (score >= 90) return 'bg-green-500';
+    if (score >= 75) return 'bg-blue-500';
+    if (score >= 60) return 'bg-yellow-500';
+    return 'bg-red-500';
+  };
+
+  const handleResetMonthlyFilters = () => {
+    setMonthlyFilters({ bulan: 'all', tahun: 'all', departemenId: 'all' });
+  };
+
+  const normalizeToNumber = (value: string | number | undefined | null) => {
+    if (value === undefined || value === null) return null;
+    const parsed = parseInt(value.toString(), 10);
+    return Number.isNaN(parsed) ? null : parsed;
+  };
+
+  const applyMonthlyFilters = (data: KpiBulanan[], filters: MonthlyFilterParams) => {
+    const selectedMonth = filters.bulan === 'all' ? null : normalizeToNumber(filters.bulan);
+    const selectedYear = filters.tahun === 'all' ? null : normalizeToNumber(filters.tahun);
+    const selectedDept = filters.departemenId === 'all' ? null : filters.departemenId;
+
+    return data.filter((item) => {
+      const itemMonth = normalizeToNumber(item.bulan);
+      const monthMatches = selectedMonth === null || itemMonth === selectedMonth;
+      const yearMatches = selectedYear === null || item.tahun === selectedYear;
+      const deptMatches = selectedDept === null || String(item.departemenId) === selectedDept;
+      return monthMatches && yearMatches && deptMatches;
+    });
+  };
+
+  const selectedKaryawan = useMemo(() => {
+    return karyawan.find((item) => item.id === formData.karyawanId) || null;
+  }, [karyawan, formData.karyawanId]);
+
+  const selectedDepartemenId = useMemo(() => {
+    if (!selectedKaryawan) return null;
+    if (selectedKaryawan.departemen && selectedKaryawan.departemen.length > 0) {
+      return selectedKaryawan.departemen[0].id;
+    }
+    return selectedKaryawan.departemenId ?? null;
+  }, [selectedKaryawan]);
+
+  const detailIndicatorIds = useMemo(() => {
+    return formData.kpiDetails
+      .map((detail) => detail.indikatorId)
+      .filter((id): id is string => Boolean(id));
+  }, [formData.kpiDetails]);
+
+  const filteredIndicators = useMemo(() => {
+    let baseList = indicators;
+    if (selectedDepartemenId) {
+      baseList = indicators.filter((indicator) => indicator.departemenId === selectedDepartemenId);
+    }
+
+    if (detailIndicatorIds.length === 0) {
+      return baseList;
+    }
+
+    const indicatorMap = new Map(baseList.map((indicator) => [indicator.id, indicator]));
+    detailIndicatorIds.forEach((id) => {
+      if (!indicatorMap.has(id)) {
+        const indicator = indicators.find((ind) => ind.id === id);
+        if (indicator) {
+          indicatorMap.set(id, indicator);
+        }
+      }
+    });
+
+    return Array.from(indicatorMap.values());
+  }, [indicators, selectedDepartemenId, detailIndicatorIds]);
+
+  /* -------------------------
+     Form dialogs (create / edit)
+     ------------------------- */
+
   const handleOpenDialog = (kpi?: KpiType) => {
     if (kpi) {
-      console.log('Editing KPI:', kpi);
       setEditingKpi(kpi);
       setFormData({
         karyawanId: kpi.karyawanId,
         year: kpi.year.toString(),
-        kpiDetails: kpi.kpiDetails.map((detail) => ({
-          indikatorId: detail.indikatorId,
-          target: detail.target.toString(),
-          realisasi: detail.realisasi?.toString() || '',
+        periodeYear: kpi.periodeYear ?? new Date().getFullYear(),
+        periodeMonth: kpi.periodeMonth ?? new Date().getMonth() + 1,
+        kpiDetails: (kpi.kpiDetails || []).map((d: any) => ({
+          indikatorId: d.indikatorId,
+          target: d.target?.toString() ?? '',
+          realisasi: d.realisasi?.toString() ?? '',
         })),
       });
     } else {
-      console.log('Creating new KPI');
       setEditingKpi(null);
       setFormData({
         karyawanId: '',
         year: new Date().getFullYear().toString(),
+        periodeYear: new Date().getFullYear(),
+        periodeMonth: new Date().getMonth() + 1,
         kpiDetails: [],
       });
     }
@@ -368,29 +423,26 @@ export const Kpi = () => {
   };
 
   const handleAddKpiDetail = () => {
-    setFormData({
-      ...formData,
-      kpiDetails: [
-        ...formData.kpiDetails,
-        { indikatorId: '', target: '', realisasi: '' },
-      ],
-    });
+    setFormData((prev) => ({
+      ...prev,
+      kpiDetails: [...prev.kpiDetails, { indikatorId: '', target: '', realisasi: '' }],
+    }));
   };
 
   const handleRemoveKpiDetail = (index: number) => {
-    const newDetails = [...formData.kpiDetails];
-    newDetails.splice(index, 1);
-    setFormData({ ...formData, kpiDetails: newDetails });
+    setFormData((prev) => {
+      const arr = [...prev.kpiDetails];
+      arr.splice(index, 1);
+      return { ...prev, kpiDetails: arr };
+    });
   };
 
-  const handleKpiDetailChange = (
-    index: number,
-    field: keyof KpiDetailFormData,
-    value: string
-  ) => {
-    const newDetails = [...formData.kpiDetails];
-    newDetails[index] = { ...newDetails[index], [field]: value };
-    setFormData({ ...formData, kpiDetails: newDetails });
+  const handleKpiDetailChange = (index: number, field: keyof KpiDetailFormData, value: string) => {
+    setFormData((prev) => {
+      const arr = [...prev.kpiDetails];
+      arr[index] = { ...arr[index], [field]: value };
+      return { ...prev, kpiDetails: arr };
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -408,34 +460,39 @@ export const Kpi = () => {
 
     try {
       setSubmitting(true);
-      const submitData = {
+
+      const fallbackYear = formData.periodeYear ?? new Date().getFullYear();
+      const fallbackMonth = formData.periodeMonth ?? new Date().getMonth() + 1;
+
+      const mappedDetails = formData.kpiDetails.map((d) => ({
+        indikatorId: d.indikatorId,
+        target: parseFloat(d.target),
+        realisasi: d.realisasi ? parseFloat(d.realisasi) : undefined,
+        periodeYear: d.periodeYear ?? fallbackYear,
+        periodeMonth: d.periodeMonth ?? fallbackMonth,
+      }));
+
+      const createPayload = {
         karyawanId: formData.karyawanId,
-        year: parseInt(formData.year),
-        periodeYear: formData.periodeYear,
-        periodeMonth: formData.periodeMonth,
-        kpiDetails: formData.kpiDetails.map((detail) => ({
-          indikatorId: detail.indikatorId,
-          target: parseFloat(detail.target),
-          realisasi: detail.realisasi ? parseFloat(detail.realisasi) : undefined,
-          periodeYear: detail.periodeYear || formData.periodeYear,
-          periodeMonth: detail.periodeMonth || formData.periodeMonth,
-        })),
+        score: 0,
+        periodeYear: fallbackYear,
+        kpiDetails: mappedDetails,
       };
 
       if (editingKpi) {
-        console.log('Submitting update for ID:', editingKpi.id);
         await kpiAPI.update(editingKpi.id, {
-          year: submitData.year,
-          kpiDetails: submitData.kpiDetails,
+          year: parseInt(formData.year, 10),
+          kpiDetails: mappedDetails,
         });
         showAlert('success', 'KPI berhasil diupdate');
       } else {
-        console.log('Submitting new KPI');
-        await kpiAPI.create(submitData);
+        await kpiAPI.create(createPayload);
         showAlert('success', 'KPI berhasil ditambahkan');
       }
+
       handleCloseDialog();
       fetchKpi();
+      fetchMonthlyKpi();
     } catch (error) {
       console.error('Submit error:', error);
       const errorMessage =
@@ -450,17 +507,25 @@ export const Kpi = () => {
     }
   };
 
+  /* -------------------------
+     Delete
+     ------------------------- */
+
+  const openDeleteDialog = (id: string) => {
+    setDeletingId(id);
+    setIsDeleteDialogOpen(true);
+  };
+
   const handleDelete = async () => {
     if (!deletingId) return;
-
     try {
       setSubmitting(true);
-      console.log('Deleting KPI ID:', deletingId);
       await kpiAPI.delete(deletingId);
       showAlert('success', 'KPI berhasil dihapus');
       setIsDeleteDialogOpen(false);
       setDeletingId(null);
       fetchKpi();
+      fetchMonthlyKpi();
     } catch (error) {
       console.error('Delete error:', error);
       const errorMessage =
@@ -473,13 +538,10 @@ export const Kpi = () => {
     }
   };
 
-  const openDeleteDialog = (id: string) => {
-    console.log('Opening delete dialog for ID:', id);
-    setDeletingId(id);
-    setIsDeleteDialogOpen(true);
-  };
+  /* -------------------------
+     View detail (yearly KPI)
+     ------------------------- */
 
-  // Fungsi untuk membuka detail KPI dan mengambil data dari API
   const openDetailDialog = async (kpiId: string) => {
     try {
       const response = await kpiAPI.getById(kpiId);
@@ -490,39 +552,315 @@ export const Kpi = () => {
     }
   };
 
-  // Fungsi untuk membuka popup detail bulanan
-  const openMonthlyDetailDialog = async (monthlyKpi: MonthlyKpiData) => {
+  /* -------------------------
+     Direct Detail Update Dialog
+     ------------------------- */
+
+  const openDirectDetailUpdateDialog = (monthlyKpi: KpiBulanan, detailId: string) => {
+    console.log('Opening direct detail update for:', monthlyKpi, detailId);
+    setEditingDetailId(detailId);
+    setEditingMonthlyKpi(monthlyKpi);
+    
+    // Initialize form with current values if available
+    setDirectDetailForm({
+      target: '',
+      realisasi: '',
+      periodeYear: monthlyKpi.tahun,
+      periodeMonth: parseInt(monthlyKpi.bulan, 10),
+    });
+    
+    setIsDirectDetailUpdateOpen(true);
+  };
+
+  const handleCloseDirectDetailDialog = () => {
+    setIsDirectDetailUpdateOpen(false);
+    setEditingDetailId(null);
+    setEditingMonthlyKpi(null);
+    setDirectDetailForm({
+      target: '',
+      realisasi: '',
+      periodeYear: new Date().getFullYear(),
+      periodeMonth: new Date().getMonth() + 1,
+    });
+  };
+
+  const handleDirectDetailUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!editingDetailId || !editingMonthlyKpi) {
+      showAlert('error', 'Data tidak lengkap');
+      return;
+    }
+
+    if (!directDetailForm.target || directDetailForm.target.trim() === '') {
+      showAlert('error', 'Target wajib diisi');
+      return;
+    }
+
     try {
-      console.log('Opening monthly detail for:', monthlyKpi);
-      setSelectedMonthlyKpi(monthlyKpi);
+      setSubmitting(true);
+
+      const updateData: any = {
+        target: parseFloat(directDetailForm.target),
+      };
+
+      if (directDetailForm.realisasi && directDetailForm.realisasi.trim() !== '') {
+        updateData.realisasi = parseFloat(directDetailForm.realisasi);
+      }
+
+      if (directDetailForm.periodeYear) {
+        updateData.periodeYear = directDetailForm.periodeYear;
+      }
+
+      if (directDetailForm.periodeMonth) {
+        updateData.periodeMonth = directDetailForm.periodeMonth;
+      }
+
+      console.log('Updating detail ID:', editingDetailId, 'with data:', updateData);
+      await kpiAPI.updateDetail(editingDetailId, updateData);
       
-      // Jika ada kpiId, ambil detail dari API
-      if (monthlyKpi.kpiId) {
-        console.log('Fetching KPI detail for ID:', monthlyKpi.kpiId);
-        const response = await kpiAPI.getById(monthlyKpi.kpiId);
-        console.log('KPI detail response:', response);
-        setMonthlyKpiDetail(response.data);
+      showAlert('success', 'Detail KPI berhasil diupdate');
+      handleCloseDirectDetailDialog();
+      fetchKpi();
+      fetchMonthlyKpi();
+    } catch (error) {
+      console.error('Error updating detail:', error);
+      const errorMessage = error instanceof AxiosError
+        ? error.response?.data?.message || 'Gagal update detail KPI'
+        : 'Gagal update detail KPI';
+      showAlert('error', errorMessage);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleEditMonthlyKpi = async (monthlyKpi: KpiBulanan) => {
+    console.log('Edit request for monthly KPI:', monthlyKpi);
+
+    // 1. Update via detailId if provided (most precise target)
+    if (monthlyKpi.detailId) {
+      console.log('Direct detail update via detailId:', monthlyKpi.detailId);
+      openDirectDetailUpdateDialog(monthlyKpi, monthlyKpi.detailId);
+      return;
+    }
+
+    // 2. Try to resolve KPI ID either from payload or fallback search
+    const monthNumber = parseInt(monthlyKpi.bulan, 10);
+    let targetKpiId = monthlyKpi.kpiId;
+
+    if (!targetKpiId) {
+      const matchedKpi = kpiList.find((kpi) => {
+        const sameEmployee = kpi.karyawanId === monthlyKpi.karyawanId;
+        const sameYear = (kpi.periodeYear ?? kpi.year) === monthlyKpi.tahun;
+        const sameMonth = (kpi.periodeMonth ?? monthNumber) === monthNumber;
+        return sameEmployee && sameYear && sameMonth;
+      });
+
+      if (matchedKpi) {
+        console.log('Resolved KPI via fallback search:', matchedKpi.id);
+        targetKpiId = matchedKpi.id;
+      }
+    }
+
+    if (!targetKpiId) {
+      showAlert('error', 'Data KPI belum tersedia untuk karyawan dan periode ini. Gunakan tombol "Tambah KPI".');
+      return;
+    }
+
+    try {
+      console.log('Fetching KPI by ID for edit:', targetKpiId);
+      setMonthlyLoading(true);
+      const res = await kpiAPI.getById(targetKpiId);
+
+      if (!res.data.kpiDetails || res.data.kpiDetails.length === 0) {
+        showAlert('error', 'KPI ini belum memiliki detail indikator');
+        return;
+      }
+
+      openUpdateDetailDialog(res.data);
+    } catch (error) {
+      console.error('Error fetching KPI for edit:', error);
+      const errorMessage = error instanceof AxiosError
+        ? error.response?.data?.message || 'Gagal mengambil data KPI'
+        : 'Gagal mengambil data KPI';
+      showAlert('error', errorMessage);
+    } finally {
+      setMonthlyLoading(false);
+    }
+  };
+
+  /* -------------------------
+     Update KPI Detail Dialog
+     ------------------------- */
+
+  const openUpdateDetailDialog = async (kpi: KpiType) => {
+    setEditingKpiForUpdate(kpi);
+    
+    console.log('Opening update dialog with KPI:', kpi);
+    console.log('KPI Details:', kpi.kpiDetails);
+    const uniqueDetails = (kpi.kpiDetails || []).filter((detail, idx, arr) => {
+      const firstIndex = arr.findIndex((d: any) => d.id === detail.id);
+      if (firstIndex !== idx) {
+        console.warn('Duplicate KPI detail detected, skipping:', detail);
+      }
+      return firstIndex === idx;
+    });
+
+    const mappedDetails = uniqueDetails.map((d: any) => {
+      console.log('Mapping detail:', d);
+      return {
+        id: d.id,
+        indikatorId: d.indikatorId,
+        target: d.target?.toString() ?? '',
+        realisasi: d.realisasi?.toString() ?? '',
+        periodeYear: d.periodeYear,
+        periodeMonth: d.periodeMonth,
+      };
+    });
+    
+    console.log('Mapped details:', mappedDetails);
+    
+    setFormData({
+      karyawanId: kpi.karyawanId,
+      year: kpi.year.toString(),
+      periodeYear: kpi.periodeYear ?? new Date().getFullYear(),
+      periodeMonth: kpi.periodeMonth ?? new Date().getMonth() + 1,
+      kpiDetails: mappedDetails,
+    });
+    setIsUpdateDetailDialogOpen(true);
+  };
+
+  const handleCloseUpdateDetailDialog = () => {
+    setIsUpdateDetailDialogOpen(false);
+    setEditingKpiForUpdate(null);
+    setFormData({
+      karyawanId: '',
+      year: new Date().getFullYear().toString(),
+      periodeYear: new Date().getFullYear(),
+      periodeMonth: new Date().getMonth() + 1,
+      kpiDetails: [],
+    });
+  };
+
+  const handleUpdateDetails = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!editingKpiForUpdate) {
+      showAlert('error', 'Tidak ada data KPI yang sedang diedit');
+      return;
+    }
+
+    // Validate all details have required fields
+    const invalidDetails = formData.kpiDetails.filter(d => !d.target || d.target.trim() === '');
+    if (invalidDetails.length > 0) {
+      showAlert('error', 'Target wajib diisi untuk semua indikator');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      let successCount = 0;
+      let errorCount = 0;
+      const errors: string[] = [];
+
+      // Update each KPI detail
+      for (const detail of formData.kpiDetails) {
+        const detailId = (detail as any).id;
+        
+        if (!detailId) {
+          console.warn('Skipping detail without ID:', detail);
+          errorCount++;
+          errors.push('Detail tanpa ID ditemukan');
+          continue;
+        }
+
+        try {
+          const detailData: any = {
+            target: parseFloat(detail.target),
+          };
+
+          // Only include realisasi if it has a value
+          if (detail.realisasi && detail.realisasi.trim() !== '') {
+            detailData.realisasi = parseFloat(detail.realisasi);
+          }
+
+          // Only include periodeYear if it has a value
+          if (detail.periodeYear !== undefined && detail.periodeYear !== null) {
+            detailData.periodeYear = detail.periodeYear;
+          }
+
+          // Only include periodeMonth if it has a value
+          if (detail.periodeMonth !== undefined && detail.periodeMonth !== null) {
+            detailData.periodeMonth = detail.periodeMonth;
+          }
+
+          console.log('Updating detail ID:', detailId, 'with data:', detailData);
+          const response = await kpiAPI.updateDetail(detailId, detailData);
+          console.log('Update response:', response);
+          successCount++;
+        } catch (detailError) {
+          errorCount++;
+          const indicator = indicators.find(ind => ind.id === detail.indikatorId);
+          const errorMsg = detailError instanceof AxiosError
+            ? detailError.response?.data?.message || 'Gagal update'
+            : 'Gagal update';
+          errors.push(`${indicator?.nama || 'Indikator'}: ${errorMsg}`);
+          console.error('Error updating detail ID:', detailId, detailError);
+        }
+      }
+
+      if (errorCount === 0) {
+        showAlert('success', `Semua ${successCount} detail KPI berhasil diupdate`);
+        handleCloseUpdateDetailDialog();
+        fetchKpi();
+        fetchMonthlyKpi();
+      } else if (successCount > 0) {
+        showAlert('error', `${successCount} berhasil, ${errorCount} gagal. ${errors.join('; ')}`);
+        fetchKpi();
+        fetchMonthlyKpi();
       } else {
-        console.warn('No kpiId found, using minimal data');
-        // Jika tidak ada kpiId, gunakan data dummy atau data minimal
+        showAlert('error', `Gagal update semua detail: ${errors.join('; ')}`);
+      }
+    } catch (error) {
+      console.error('Update details error:', error);
+      const errorMessage =
+        error instanceof AxiosError
+          ? error.response?.data?.message || 'Terjadi kesalahan'
+          : error instanceof Error
+          ? error.message
+          : 'Terjadi kesalahan';
+      showAlert('error', errorMessage);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  /* -------------------------
+     Monthly detail dialog (uses kpiId from monthly response)
+     ------------------------- */
+
+  const openMonthlyDetailDialog = async (monthlyKpi: KpiBulanan) => {
+    try {
+      setSelectedMonthlyKpi(monthlyKpi);
+      // If server provides kpiId, fetch full KPI detail
+      if (monthlyKpi.kpiId) {
+        const res = await kpiAPI.getById(monthlyKpi.kpiId);
+        setMonthlyKpiDetail(res.data);
+      } else {
+        // if no kpiId provided, keep minimal / empty details
         setMonthlyKpiDetail({ kpiDetails: [] });
       }
-      
       setMonthlyDetailDialogOpen(true);
     } catch (error) {
-      console.error('Error fetching KPI detail:', error);
-      // Tetap buka dialog dengan data minimal
+      console.error('Error fetching KPI detail for monthly item:', error);
       setMonthlyKpiDetail({ kpiDetails: [] });
       setMonthlyDetailDialogOpen(true);
     }
   };
 
-  const getScoreColor = (score: number) => {
-    if (score >= 90) return 'bg-green-500';
-    if (score >= 75) return 'bg-blue-500';
-    if (score >= 60) return 'bg-yellow-500';
-    return 'bg-red-500';
-  };
+  /* -------------------------
+     Render
+     ------------------------- */
 
   return (
     <div className="flex h-screen bg-background">
@@ -530,7 +868,7 @@ export const Kpi = () => {
 
       <main className="flex-1 overflow-y-auto p-8">
         <div className="mx-auto max-w-7xl space-y-6">
-          {/* Alert Messages */}
+          {/* Alert */}
           {alert.show && (
             <Alert variant={alert.type === 'error' ? 'destructive' : 'default'}>
               {alert.type === 'error' ? (
@@ -545,9 +883,7 @@ export const Kpi = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">KPI Karyawan</h1>
-              <p className="text-gray-500 mt-1">
-                Kelola penilaian kinerja karyawan - Data Bulanan
-              </p>
+              <p className="text-gray-500 mt-1">Kelola penilaian kinerja karyawan - Data Bulanan</p>
             </div>
             <div className="flex items-center gap-4">
               <Button onClick={() => handleOpenDialog()}>
@@ -557,89 +893,77 @@ export const Kpi = () => {
             </div>
           </div>
 
-          {/* Filters for Monthly View */}
-          {
-            <Card>
-              <CardHeader>
-                <CardTitle>Filter Data KPI Bulanan</CardTitle>
-                <CardDescription>
-                  Pilih parameter untuk menampilkan data KPI bulanan
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label>Tahun</Label>
-                    <Select 
-                      value={filterParams.year.toString()} 
-                      onValueChange={(value) => handleFilterChange('year', parseInt(value))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: 5 }, (_, i) => {
-                          const year = new Date().getFullYear() - i;
-                          return (
-                            <SelectItem key={year} value={year.toString()}>
-                              {year}
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label>Bulan</Label>
-                    <Select 
-                      value={filterParams.bulan} 
-                      onValueChange={(value) => handleFilterChange('bulan', value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: 12 }, (_, i) => {
-                          const month = (i + 1).toString().padStart(2, '0');
-                          return (
-                            <SelectItem key={month} value={month}>
-                              {getMonthName(month)}
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label>Departemen (Opsional)</Label>
-                    <Select 
-                      value={filterParams.departemenId} 
-                      onValueChange={(value) => handleFilterChange('departemenId', value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Semua Departemen" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Semua Departemen</SelectItem>
-                        {/* Will be populated when departemen data is available */}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          }
-
+          {/* Monthly KPI Table */}
           <Card>
-            <CardHeader>
-              <CardTitle>
-                KPI Bulanan - {getMonthName(filterParams.bulan)} {filterParams.year}
-              </CardTitle>
-              <CardDescription>
-                Menampilkan KPI karyawan berdasarkan parameter bulanan yang dipilih
-              </CardDescription>
+            <CardHeader className="space-y-4">
+              <div>
+                <CardTitle>Data KPI Bulanan</CardTitle>
+                <CardDescription>Menampilkan semua data KPI karyawan bulanan</CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <div className="min-w-[150px]">
+                  <Label className="text-xs text-muted-foreground">Bulan</Label>
+                  <Select
+                    value={monthlyFilters.bulan}
+                    onValueChange={(value) => setMonthlyFilters((prev) => ({ ...prev, bulan: value }))}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Semua Bulan" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua Bulan</SelectItem>
+                      {monthOptions.map((month) => (
+                        <SelectItem key={month.value} value={month.value}>
+                          {month.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="min-w-[150px]">
+                  <Label className="text-xs text-muted-foreground">Tahun</Label>
+                  <Select
+                    value={monthlyFilters.tahun}
+                    onValueChange={(value) => setMonthlyFilters((prev) => ({ ...prev, tahun: value }))}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Semua Tahun" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua Tahun</SelectItem>
+                      {yearOptions.map((year) => (
+                        <SelectItem key={year} value={year}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="min-w-[180px]">
+                  <Label className="text-xs text-muted-foreground">Departemen</Label>
+                  <Select
+                    value={monthlyFilters.departemenId}
+                    onValueChange={(value) => setMonthlyFilters((prev) => ({ ...prev, departemenId: value }))}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Semua Departemen" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua Departemen</SelectItem>
+                      {departmentOptions.map((dept) => (
+                        <SelectItem key={dept.id} value={dept.id}>
+                          {dept.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-end">
+                  <Button variant="outline" size="sm" onClick={handleResetMonthlyFilters}>
+                    Reset Filter
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {monthlyLoading ? (
@@ -648,8 +972,8 @@ export const Kpi = () => {
                 </div>
               ) : monthlyKpiList.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
-                  <p>Belum ada data KPI untuk {getMonthName(filterParams.bulan)} {filterParams.year}</p>
-                  <p className="text-sm mt-2">Coba ubah filter bulan atau tahun</p>
+                  <p>Belum ada data KPI bulanan</p>
+                  <p className="text-sm mt-2">Data akan muncul setelah KPI ditambahkan</p>
                 </div>
               ) : (
                 <Table>
@@ -658,10 +982,15 @@ export const Kpi = () => {
                       <TableHead>No</TableHead>
                       <TableHead>Karyawan</TableHead>
                       <TableHead>Departemen</TableHead>
-                      <TableHead>Periode</TableHead>
+                      <TableHead>Tahun</TableHead>
+                      <TableHead>Bulan</TableHead>
                       <TableHead>Score Presensi</TableHead>
+                      <TableHead>Bobot Presensi</TableHead>
                       <TableHead>Score Pelatihan</TableHead>
+                      <TableHead>Bobot Pelatihan</TableHead>
+                      <TableHead>Total Bobot Indikator Lain</TableHead>
                       <TableHead>Total Score Indikator Lain</TableHead>
+                      <TableHead>KPI Indikator Lain</TableHead>
                       <TableHead>KPI Final</TableHead>
                       <TableHead>Performance</TableHead>
                       <TableHead className="text-right">Aksi</TableHead>
@@ -669,45 +998,23 @@ export const Kpi = () => {
                   </TableHeader>
                   <TableBody>
                     {monthlyKpiList.map((monthlyKpi, index) => {
-                      const performance = monthlyKpi.kpiFinal ? getPerformanceLevel(monthlyKpi.kpiFinal) : { level: 'No Data', color: 'bg-gray-500' };
+                      const performance = getPerformanceLevel(monthlyKpi.kpiFinal);
                       return (
-                        <TableRow key={`monthly-kpi-${index}-${monthlyKpi.karyawanId || 'unknown'}-${monthlyKpi.bulan || 'unknown'}`}>
+                        <TableRow key={`monthly-kpi-${index}-${monthlyKpi.karyawanId}-${monthlyKpi.bulan}`}>
                           <TableCell>{index + 1}</TableCell>
                           <TableCell className="font-medium">{monthlyKpi.namaKaryawan}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{monthlyKpi.departemen}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="text-sm">
-                              <div>{getMonthName(monthlyKpi.bulan)}</div>
-                              <div className="text-gray-500">{monthlyKpi.tahun}</div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="secondary">{monthlyKpi.scorePresensi}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="secondary">{monthlyKpi.scorePelatihan}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{monthlyKpi.totalScoreIndikatorLain.toFixed(2)}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              {monthlyKpi.kpiFinal ? (
-                                <Badge className={getScoreColor(monthlyKpi.kpiFinal)}>
-                                  {monthlyKpi.kpiFinal.toFixed(1)}
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline">-</Badge>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={performance.color}>
-                              {performance.level}
-                            </Badge>
-                          </TableCell>
+                          <TableCell><Badge variant="outline">{monthlyKpi.departemen}</Badge></TableCell>
+                          <TableCell>{monthlyKpi.tahun}</TableCell>
+                          <TableCell>{getMonthName(monthlyKpi.bulan)}</TableCell>
+                          <TableCell><Badge variant="secondary">{monthlyKpi.scorePresensi}%</Badge></TableCell>
+                          <TableCell><Badge variant="outline">{monthlyKpi.bobotPresensi}%</Badge></TableCell>
+                          <TableCell><Badge variant="secondary">{monthlyKpi.scorePelatihan}%</Badge></TableCell>
+                          <TableCell><Badge variant="outline">{monthlyKpi.bobotPelatihan}%</Badge></TableCell>
+                          <TableCell><Badge variant="outline">{monthlyKpi.totalBobotIndikatorLain}</Badge></TableCell>
+                          <TableCell><Badge variant="secondary">{monthlyKpi.totalScoreIndikatorLain.toFixed(2)}</Badge></TableCell>
+                          <TableCell><Badge className="bg-purple-500">{monthlyKpi.kpiIndikatorLain.toFixed(2)}</Badge></TableCell>
+                          <TableCell><Badge className={getScoreColor(monthlyKpi.kpiFinal)}>{monthlyKpi.kpiFinal.toFixed(2)}</Badge></TableCell>
+                          <TableCell><Badge className={performance.color}>{performance.level}</Badge></TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
                               <Button
@@ -720,17 +1027,10 @@ export const Kpi = () => {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => {
-                                  // Create new KPI for this employee
-                                  setFormData({
-                                    karyawanId: monthlyKpi.karyawanId,
-                                    year: monthlyKpi.tahun.toString(),
-                                    kpiDetails: []
-                                  });
-                                  handleOpenDialog();
-                                }}
+                                onClick={() => handleEditMonthlyKpi(monthlyKpi)}
+                                disabled={monthlyLoading}
                               >
-                                <Pencil className="h-4 w-4" />
+                                {monthlyLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
                               </Button>
                             </div>
                           </TableCell>
@@ -745,31 +1045,24 @@ export const Kpi = () => {
         </div>
       </main>
 
-      {/* Form Dialog */}
+      {/* Create / Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
-              {editingKpi ? 'Edit KPI' : 'Tambah KPI'}
-            </DialogTitle>
+            <DialogTitle>{editingKpi ? 'Edit KPI' : 'Tambah KPI'}</DialogTitle>
             <DialogDescription>
-              {editingKpi
-                ? `Update informasi KPI (ID: ${editingKpi.id})`
-                : 'Tambahkan KPI baru ke sistem'}
+              {editingKpi ? `Update informasi KPI (ID: ${editingKpi.id})` : 'Tambahkan KPI baru ke sistem'}
             </DialogDescription>
           </DialogHeader>
+
           <form onSubmit={handleSubmit}>
             <div className="space-y-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="karyawanId">
-                    Karyawan <span className="text-red-500">*</span>
-                  </Label>
+                  <Label htmlFor="karyawanId">Karyawan <span className="text-red-500">*</span></Label>
                   <Select
                     value={formData.karyawanId}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, karyawanId: value })
-                    }
+                    onValueChange={(value) => setFormData({ ...formData, karyawanId: value })}
                     disabled={submitting || !!editingKpi}
                   >
                     <SelectTrigger>
@@ -777,28 +1070,22 @@ export const Kpi = () => {
                     </SelectTrigger>
                     <SelectContent>
                       {karyawan.map((k) => (
-                        <SelectItem key={k.id} value={k.id}>
-                          {k.nama}
-                        </SelectItem>
+                        <SelectItem key={k.id} value={k.id}>{k.nama}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="year">
-                    Tahun <span className="text-red-500">*</span>
-                  </Label>
+                  <Label htmlFor="year">Tahun <span className="text-red-500">*</span></Label>
                   <Input
                     id="year"
                     type="number"
-                    min="2000"
-                    max="2100"
+                    min={2000}
+                    max={2100}
                     placeholder="2024"
                     value={formData.year}
-                    onChange={(e) =>
-                      setFormData({ ...formData, year: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, year: e.target.value })}
                     disabled={submitting}
                   />
                 </div>
@@ -806,60 +1093,41 @@ export const Kpi = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="periodeYear">
-                    Periode Tahun (untuk perhitungan KPI)
-                  </Label>
+                  <Label htmlFor="periodeYear">Periode Tahun (untuk perhitungan KPI)</Label>
                   <Input
                     id="periodeYear"
                     type="number"
-                    min="2000"
-                    max="2100"
+                    min={2000}
+                    max={2100}
                     placeholder="2024"
                     value={formData.periodeYear || ''}
-                    onChange={(e) =>
-                      setFormData({ ...formData, periodeYear: e.target.value ? parseInt(e.target.value) : undefined })
-                    }
+                    onChange={(e) => setFormData({ ...formData, periodeYear: e.target.value ? parseInt(e.target.value, 10) : undefined })}
                     disabled={submitting}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Kosongkan untuk menggunakan waktu input otomatis
-                  </p>
+                  <p className="text-xs text-muted-foreground">Kosongkan untuk menggunakan waktu input otomatis</p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="periodeMonth">
-                    Periode Bulan (1-12)
-                  </Label>
+                  <Label htmlFor="periodeMonth">Periode Bulan (1-12)</Label>
                   <Input
                     id="periodeMonth"
                     type="number"
-                    min="1"
-                    max="12"
+                    min={1}
+                    max={12}
                     placeholder="1-12"
                     value={formData.periodeMonth || ''}
-                    onChange={(e) =>
-                      setFormData({ ...formData, periodeMonth: e.target.value ? parseInt(e.target.value) : undefined })
-                    }
+                    onChange={(e) => setFormData({ ...formData, periodeMonth: e.target.value ? parseInt(e.target.value, 10) : undefined })}
                     disabled={submitting}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Kosongkan untuk menggunakan waktu input otomatis
-                  </p>
+                  <p className="text-xs text-muted-foreground">Kosongkan untuk menggunakan waktu input otomatis</p>
                 </div>
               </div>
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <Label>KPI Details</Label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleAddKpiDetail}
-                    disabled={submitting}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Tambah Detail
+                  <Button type="button" variant="outline" size="sm" onClick={handleAddKpiDetail} disabled={submitting}>
+                    <Plus className="h-4 w-4 mr-2" /> Tambah Detail
                   </Button>
                 </div>
 
@@ -872,18 +1140,16 @@ export const Kpi = () => {
                             <Label>Indikator</Label>
                             <Select
                               value={detail.indikatorId}
-                              onValueChange={(value) =>
-                                handleKpiDetailChange(index, 'indikatorId', value)
-                              }
+                              onValueChange={(value) => handleKpiDetailChange(index, 'indikatorId', value)}
                               disabled={submitting}
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Pilih indikator" />
                               </SelectTrigger>
                               <SelectContent>
-                                {indicators.map((ind) => (
-                                  <SelectItem key={ind.id} value={ind.id}>
-                                    {ind.nama} ({(ind.bobot * 100).toFixed(0)}%)
+                                {filteredIndicators.map((indicator) => (
+                                  <SelectItem key={indicator.id} value={indicator.id}>
+                                    {indicator.nama} ({(indicator.bobot * 100).toFixed(0)}%)
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -898,13 +1164,7 @@ export const Kpi = () => {
                                 step="0.01"
                                 placeholder="100"
                                 value={detail.target}
-                                onChange={(e) =>
-                                  handleKpiDetailChange(
-                                    index,
-                                    'target',
-                                    e.target.value
-                                  )
-                                }
+                                onChange={(e) => handleKpiDetailChange(index, 'target', e.target.value)}
                                 disabled={submitting}
                               />
                             </div>
@@ -916,26 +1176,14 @@ export const Kpi = () => {
                                 step="0.01"
                                 placeholder="95"
                                 value={detail.realisasi}
-                                onChange={(e) =>
-                                  handleKpiDetailChange(
-                                    index,
-                                    'realisasi',
-                                    e.target.value
-                                  )
-                                }
+                                onChange={(e) => handleKpiDetailChange(index, 'realisasi', e.target.value)}
                                 disabled={submitting}
                               />
                             </div>
                           </div>
                         </div>
 
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveKpiDetail(index)}
-                          disabled={submitting}
-                        >
+                        <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveKpiDetail(index)} disabled={submitting}>
                           <X className="h-4 w-4" />
                         </Button>
                       </div>
@@ -944,15 +1192,9 @@ export const Kpi = () => {
                 ))}
               </div>
             </div>
+
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleCloseDialog}
-                disabled={submitting}
-              >
-                Batal
-              </Button>
+              <Button type="button" variant="outline" onClick={handleCloseDialog} disabled={submitting}>Batal</Button>
               <Button type="submit" disabled={submitting}>
                 {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {editingKpi ? 'Update' : 'Simpan'}
@@ -962,15 +1204,14 @@ export const Kpi = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Detail Dialog */}
+      {/* Detail Dialog (Yearly KPI) */}
       <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detail KPI</DialogTitle>
-            <DialogDescription>
-              Informasi lengkap KPI karyawan
-            </DialogDescription>
+            <DialogDescription>Informasi lengkap KPI karyawan</DialogDescription>
           </DialogHeader>
+
           {viewingKpi && (
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
@@ -984,22 +1225,16 @@ export const Kpi = () => {
                 </div>
                 <div>
                   <Label className="text-sm text-gray-500">Total Score</Label>
-                  <Badge className={getScoreColor(viewingKpi.score)}>
-                    {viewingKpi.score.toFixed(2)}
-                  </Badge>
+                  <Badge className={getScoreColor(viewingKpi.score)}>{viewingKpi.score.toFixed(2)}</Badge>
                 </div>
                 <div>
                   <Label className="text-sm text-gray-500">Departemen</Label>
-                  <p className="font-medium">
-                    {viewingKpi.karyawan.departemen[0]?.nama || '-'}
-                  </p>
+                  <p className="font-medium">{viewingKpi.karyawan.departemen[0]?.nama || '-'}</p>
                 </div>
               </div>
 
               <div>
-                <Label className="text-lg font-semibold mb-4 block">
-                  KPI Details
-                </Label>
+                <Label className="text-lg font-semibold mb-4 block">KPI Details</Label>
                 {viewingKpi.kpiDetails && viewingKpi.kpiDetails.length > 0 ? (
                   <Table>
                     <TableHeader>
@@ -1015,27 +1250,19 @@ export const Kpi = () => {
                     <TableBody>
                       {viewingKpi.kpiDetails.map((detail: any) => (
                         <TableRow key={detail.id}>
-                          <TableCell className="font-medium">
-                            {detail.indikator?.nama || '-'}
-                          </TableCell>
-                          <TableCell>
-                            {detail.indikator?.deskripsi || '-'}
-                          </TableCell>
+                          <TableCell className="font-medium">{detail.indikator?.nama || '-'}</TableCell>
+                          <TableCell>{detail.indikator?.deskripsi || '-'}</TableCell>
                           <TableCell>
                             <Badge variant="secondary">
                               {detail.indikator?.bobot ? (detail.indikator.bobot * 100).toFixed(0) + '%' : '-'}
                             </Badge>
                           </TableCell>
                           <TableCell>{detail.target}</TableCell>
-                          <TableCell>{detail.realisasi !== null && detail.realisasi !== undefined ? detail.realisasi : '-'}</TableCell>
+                          <TableCell>{detail.realisasi ?? '-'}</TableCell>
                           <TableCell>
-                            {detail.score !== null && detail.score !== undefined ? (
-                              <Badge className={getScoreColor(detail.score)}>
-                                {detail.score.toFixed(2)}
-                              </Badge>
-                            ) : (
-                              '-'
-                            )}
+                            {detail.score != null ? (
+                              <Badge className={getScoreColor(detail.score)}>{detail.score.toFixed(2)}</Badge>
+                            ) : '-'}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -1047,18 +1274,14 @@ export const Kpi = () => {
               </div>
             </div>
           )}
+
           <DialogFooter>
-            <Button
-              type="button"
-              onClick={() => setIsDetailDialogOpen(false)}
-            >
-              Tutup
-            </Button>
+            <Button onClick={() => setIsDetailDialogOpen(false)}>Tutup</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Popup Detail KPI Bulanan */}
+      {/* Monthly Detail Dialog */}
       <Dialog open={monthlyDetailDialogOpen} onOpenChange={setMonthlyDetailDialogOpen}>
         <DialogContent className="max-w-2xl rounded-xl shadow-lg bg-white p-8">
           <DialogHeader>
@@ -1067,6 +1290,7 @@ export const Kpi = () => {
               Rincian score dan bobot indikator untuk <span className="font-semibold text-gray-800">{selectedMonthlyKpi?.namaKaryawan || '-'}</span>
             </DialogDescription>
           </DialogHeader>
+
           {selectedMonthlyKpi && monthlyKpiDetail && (
             <>
               <div className="grid grid-cols-2 gap-6 mb-4">
@@ -1089,6 +1313,7 @@ export const Kpi = () => {
                   </span>
                 </div>
               </div>
+
               <div className="mb-2 mt-2">
                 <Label className="text-base font-semibold text-gray-800 mb-2 block">Komponen KPI</Label>
                 <Table>
@@ -1104,92 +1329,77 @@ export const Kpi = () => {
                     <TableRow>
                       <TableCell>Presensi</TableCell>
                       <TableCell>
-                        <Badge className="bg-blue-500 text-white px-2 py-1">
-                          {selectedMonthlyKpi.scorePresensi}%
-                        </Badge>
+                        <Badge className="bg-blue-500 text-white px-2 py-1">{selectedMonthlyKpi.scorePresensi}%</Badge>
                       </TableCell>
                       <TableCell>{selectedMonthlyKpi.bobotPresensi}%</TableCell>
-                      <TableCell>
-                        {(parseFloat(selectedMonthlyKpi.scorePresensi) * selectedMonthlyKpi.bobotPresensi / 100).toFixed(2)}
-                      </TableCell>
+                      <TableCell>{(parseFloat(selectedMonthlyKpi.scorePresensi) * selectedMonthlyKpi.bobotPresensi / 100).toFixed(2)}</TableCell>
                     </TableRow>
+
                     <TableRow>
                       <TableCell>Pelatihan</TableCell>
                       <TableCell>
-                        <Badge className="bg-purple-500 text-white px-2 py-1">
-                          {selectedMonthlyKpi.scorePelatihan}%
-                        </Badge>
+                        <Badge className="bg-purple-500 text-white px-2 py-1">{selectedMonthlyKpi.scorePelatihan}%</Badge>
                       </TableCell>
                       <TableCell>{selectedMonthlyKpi.bobotPelatihan}%</TableCell>
-                      <TableCell>
-                        {(selectedMonthlyKpi.scorePelatihan * selectedMonthlyKpi.bobotPelatihan / 100).toFixed(2)}
-                      </TableCell>
+                      <TableCell>{(selectedMonthlyKpi.scorePelatihan * selectedMonthlyKpi.bobotPelatihan / 100).toFixed(2)}</TableCell>
                     </TableRow>
+
+                    {/* If monthlyKpiDetail contains kpiDetails, render them */}
                     {monthlyKpiDetail.kpiDetails && monthlyKpiDetail.kpiDetails.length > 0 && monthlyKpiDetail.kpiDetails.map((detail: any) => (
                       <TableRow key={detail.id}>
                         <TableCell>{detail.indikator?.nama || 'Indikator Lain'}</TableCell>
                         <TableCell>
                           <Badge className="bg-green-500 text-white px-2 py-1">
-                            {detail.score !== null && detail.score !== undefined ? detail.score.toFixed(1) + '%' : '-'}
+                            {detail.score != null ? detail.score.toFixed(1) + '%' : '-'}
                           </Badge>
                         </TableCell>
+                        <TableCell>{detail.indikator?.bobot ? (detail.indikator.bobot * 100).toFixed(0) + '%' : '-'}</TableCell>
                         <TableCell>
-                          {detail.indikator?.bobot ? (detail.indikator.bobot * 100).toFixed(0) + '%' : '-'}
-                        </TableCell>
-                        <TableCell>
-                          {detail.score !== null && detail.indikator?.bobot 
-                            ? (detail.score * detail.indikator.bobot).toFixed(2)
-                            : '-'
-                          }
+                          {detail.score != null && detail.indikator?.bobot ? (detail.score * detail.indikator.bobot).toFixed(2) : '-'}
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </div>
-              
-              {/* Detail List untuk KPI Details */}
+
               {monthlyKpiDetail.kpiDetails && monthlyKpiDetail.kpiDetails.length > 0 && (
                 <div className="mb-4 mt-4">
                   <Label className="text-base font-semibold text-gray-800 mb-2 block">Detail Indikator Lain</Label>
                   <div className="space-y-2">
-                    {monthlyKpiDetail.kpiDetails.map((detail: any, index: number) => (
+                    {monthlyKpiDetail.kpiDetails.map((detail: any) => (
                       <div key={detail.id} className="border rounded-lg p-3 bg-gray-50">
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <Label className="text-xs text-gray-500">Indikator</Label>
                             <div className="font-semibold text-sm">{detail.indikator?.nama || '-'}</div>
                           </div>
+
                           <div>
                             <Label className="text-xs text-gray-500">Bobot</Label>
-                            <div className="font-semibold text-sm">
-                              {detail.indikator?.bobot ? (detail.indikator.bobot * 100).toFixed(0) + '%' : '-'}
-                            </div>
+                            <div className="font-semibold text-sm">{detail.indikator?.bobot ? (detail.indikator.bobot * 100).toFixed(0) + '%' : '-'}</div>
                           </div>
+
                           <div>
                             <Label className="text-xs text-gray-500">Target</Label>
                             <div className="font-semibold text-sm">{detail.target || '-'}</div>
                           </div>
+
                           <div>
                             <Label className="text-xs text-gray-500">Realisasi</Label>
-                            <div className="font-semibold text-sm">
-                              {detail.realisasi !== null && detail.realisasi !== undefined ? detail.realisasi : '-'}
-                            </div>
+                            <div className="font-semibold text-sm">{detail.realisasi ?? '-'}</div>
                           </div>
+
                           <div>
                             <Label className="text-xs text-gray-500">Score</Label>
                             <Badge className="bg-green-500 text-white px-2 py-1 text-xs">
-                              {detail.score !== null && detail.score !== undefined ? detail.score.toFixed(1) + '%' : '-'}
+                              {detail.score != null ? detail.score.toFixed(1) + '%' : '-'}
                             </Badge>
                           </div>
+
                           <div>
                             <Label className="text-xs text-gray-500">Kontribusi</Label>
-                            <div className="font-semibold text-sm">
-                              {detail.score !== null && detail.indikator?.bobot 
-                                ? (detail.score * detail.indikator.bobot).toFixed(2)
-                                : '-'
-                              }
-                            </div>
+                            <div className="font-semibold text-sm">{detail.score != null && detail.indikator?.bobot ? (detail.score * detail.indikator.bobot).toFixed(2) : '-'}</div>
                           </div>
                         </div>
                       </div>
@@ -1197,31 +1407,27 @@ export const Kpi = () => {
                   </div>
                 </div>
               )}
-              
+
               <div className="grid grid-cols-2 gap-6 mt-4 mb-2">
                 <div>
-                  <Label className="text-xs text-gray-500">Total Score Indikator Lain</Label>
-                  <div className="font-semibold text-gray-800">
-                    {selectedMonthlyKpi.totalScoreIndikatorLain.toFixed(2)}
-                  </div>
+                  <Label className="text-xs text-gray-500">Total Bobot Indikator Lain</Label>
+                  <div className="font-semibold text-gray-800">{selectedMonthlyKpi.totalBobotIndikatorLain}</div>
                 </div>
                 <div>
-                  <Label className="text-xs text-gray-500">Total Bobot Indikator Lain</Label>
-                  <div className="font-semibold text-gray-800">
-                    {selectedMonthlyKpi.totalBobotIndikatorLain}
-                  </div>
+                  <Label className="text-xs text-gray-500">KPI Indikator Lain</Label>
+                  <div className="font-semibold text-gray-800">{selectedMonthlyKpi.kpiIndikatorLain.toFixed(2)}</div>
                 </div>
               </div>
+
               <div className="mt-4 mb-2">
                 <Label className="text-base font-semibold text-gray-800 mb-2 block">Perhitungan Final</Label>
                 <div className="font-bold text-xl text-gray-900">
                   KPI Final = {selectedMonthlyKpi.kpiFinal ? selectedMonthlyKpi.kpiFinal.toFixed(2) + '%' : '-'}
                 </div>
               </div>
+
               <DialogFooter className="mt-6 flex justify-end">
-                <Button type="button" className="px-6 py-2" onClick={() => setMonthlyDetailDialogOpen(false)}>
-                  Tutup
-                </Button>
+                <Button type="button" className="px-6 py-2" onClick={() => setMonthlyDetailDialogOpen(false)}>Tutup</Button>
               </DialogFooter>
             </>
           )}
@@ -1234,8 +1440,7 @@ export const Kpi = () => {
           <DialogHeader>
             <DialogTitle>Konfirmasi Hapus</DialogTitle>
             <DialogDescription>
-              Apakah Anda yakin ingin menghapus KPI ini? Tindakan ini tidak dapat
-              dibatalkan.
+              Apakah Anda yakin ingin menghapus KPI ini? Tindakan ini tidak dapat dibatalkan.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -1260,6 +1465,271 @@ export const Kpi = () => {
               Hapus
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Direct Detail Update Dialog */}
+      <Dialog open={isDirectDetailUpdateOpen} onOpenChange={setIsDirectDetailUpdateOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Update Detail KPI</DialogTitle>
+            <DialogDescription>
+              Update target dan realisasi untuk detail KPI {editingMonthlyKpi?.namaKaryawan}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleDirectDetailUpdate}>
+            <div className="space-y-4 py-4">
+              {editingMonthlyKpi && (
+                <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                  <div>
+                    <Label className="text-sm text-gray-500">Karyawan</Label>
+                    <p className="font-medium">{editingMonthlyKpi.namaKaryawan}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm text-gray-500">Departemen</Label>
+                    <p className="font-medium">{editingMonthlyKpi.departemen}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm text-gray-500">Periode</Label>
+                    <p className="font-medium">
+                      {getMonthName(editingMonthlyKpi.bulan)} {editingMonthlyKpi.tahun}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-sm text-gray-500">Detail ID</Label>
+                    <p className="font-medium text-xs">{editingDetailId}</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Target <span className="text-red-500">*</span></Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="100"
+                    value={directDetailForm.target}
+                    onChange={(e) => setDirectDetailForm({ ...directDetailForm, target: e.target.value })}
+                    disabled={submitting}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Realisasi</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="95"
+                    value={directDetailForm.realisasi}
+                    onChange={(e) => setDirectDetailForm({ ...directDetailForm, realisasi: e.target.value })}
+                    disabled={submitting}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Periode Tahun</Label>
+                  <Input
+                    type="number"
+                    min={2000}
+                    max={2100}
+                    value={directDetailForm.periodeYear}
+                    onChange={(e) => setDirectDetailForm({ ...directDetailForm, periodeYear: parseInt(e.target.value) || new Date().getFullYear() })}
+                    disabled={submitting}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Periode Bulan (1-12)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={12}
+                    value={directDetailForm.periodeMonth}
+                    onChange={(e) => setDirectDetailForm({ ...directDetailForm, periodeMonth: parseInt(e.target.value) || 1 })}
+                    disabled={submitting}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCloseDirectDetailDialog}
+                disabled={submitting}
+              >
+                Batal
+              </Button>
+              <Button type="submit" disabled={submitting}>
+                {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Update Detail
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Update KPI Details Dialog */}
+      <Dialog open={isUpdateDetailDialogOpen} onOpenChange={setIsUpdateDetailDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Update Detail KPI</DialogTitle>
+            <DialogDescription>
+              Update target dan realisasi untuk setiap indikator KPI
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleUpdateDetails}>
+            <div className="space-y-4 py-4">
+              {editingKpiForUpdate && (
+                <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                  <div>
+                    <Label className="text-sm text-gray-500">Karyawan</Label>
+                    <p className="font-medium">{editingKpiForUpdate.karyawan.nama}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm text-gray-500">Tahun</Label>
+                    <p className="font-medium">{editingKpiForUpdate.year}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm text-gray-500">Periode</Label>
+                    <p className="font-medium">
+                      {editingKpiForUpdate.periodeMonth && editingKpiForUpdate.periodeYear
+                        ? `${getMonthName(editingKpiForUpdate.periodeMonth.toString().padStart(2, '0'))} ${editingKpiForUpdate.periodeYear}`
+                        : '-'}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-sm text-gray-500">Departemen</Label>
+                    <p className="font-medium">{editingKpiForUpdate.karyawan.departemen[0]?.nama || '-'}</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <Label className="text-lg font-semibold">Detail Indikator KPI</Label>
+
+                {formData.kpiDetails.map((detail, index) => {
+                  const indicator = indicators.find(ind => ind.id === detail.indikatorId);
+                  return (
+                    <Card key={index}>
+                      <CardContent className="pt-6">
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <Label className="text-base font-semibold">{indicator?.nama || 'Indikator'}</Label>
+                              <p className="text-sm text-gray-500">{indicator?.deskripsi || ''}</p>
+                              <Badge variant="secondary" className="mt-1">
+                                Bobot: {indicator?.bobot ? (indicator.bobot * 100).toFixed(0) + '%' : '-'}
+                              </Badge>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>Target <span className="text-red-500">*</span></Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="100"
+                                value={detail.target}
+                                onChange={(e) => {
+                                  const newDetails = [...formData.kpiDetails];
+                                  newDetails[index] = { ...newDetails[index], target: e.target.value };
+                                  setFormData({ ...formData, kpiDetails: newDetails });
+                                }}
+                                disabled={submitting}
+                                required
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label>Realisasi</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="95"
+                                value={detail.realisasi}
+                                onChange={(e) => {
+                                  const newDetails = [...formData.kpiDetails];
+                                  newDetails[index] = { ...newDetails[index], realisasi: e.target.value };
+                                  setFormData({ ...formData, kpiDetails: newDetails });
+                                }}
+                                disabled={submitting}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>Periode Tahun</Label>
+                              <Input
+                                type="number"
+                                min={2000}
+                                max={2100}
+                                placeholder="2024"
+                                value={detail.periodeYear || ''}
+                                onChange={(e) => {
+                                  const newDetails = [...formData.kpiDetails];
+                                  newDetails[index] = { 
+                                    ...newDetails[index], 
+                                    periodeYear: e.target.value ? parseInt(e.target.value, 10) : undefined 
+                                  };
+                                  setFormData({ ...formData, kpiDetails: newDetails });
+                                }}
+                                disabled={submitting}
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label>Periode Bulan (1-12)</Label>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={12}
+                                placeholder="1-12"
+                                value={detail.periodeMonth || ''}
+                                onChange={(e) => {
+                                  const newDetails = [...formData.kpiDetails];
+                                  newDetails[index] = { 
+                                    ...newDetails[index], 
+                                    periodeMonth: e.target.value ? parseInt(e.target.value, 10) : undefined 
+                                  };
+                                  setFormData({ ...formData, kpiDetails: newDetails });
+                                }}
+                                disabled={submitting}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCloseUpdateDetailDialog}
+                disabled={submitting}
+              >
+                Batal
+              </Button>
+              <Button type="submit" disabled={submitting}>
+                {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Update KPI Details
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

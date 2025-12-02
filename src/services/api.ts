@@ -213,7 +213,7 @@ export const karyawanAPI = {
     return response.data;
   },
 
-  getKpiBulanan: async (params?: { bulan?: string; departemenId?: string; year?: number }): Promise<any> => {
+  getKpiBulanan: async (params?: { bulan?: string | number; departemenId?: string | number; year?: number }): Promise<any> => {
     const response = await api.get('/api/karyawan/kpi-bulanan', { params });
     return response.data;
   },
@@ -337,12 +337,13 @@ export const kpiAPI = {
   },
 
   updateDetail: async (detailId: string, data: KpiDetailUpdateRequest): Promise<KpiDetailSingleResponse> => {
-    const response = await api.put<KpiDetailSingleResponse>(`/api/kpi/kpi/details/${detailId}`, data);
+    console.log('Updating KPI Detail:', { detailId, data });
+    const response = await api.put<KpiDetailSingleResponse>(`/api/kpi/details/${detailId}`, data);
     return response.data;
   },
 
   deleteDetail: async (detailId: string): Promise<{ status: number; message: string }> => {
-    const response = await api.delete<{ status: number; message: string }>(`/api/kpi/kpi/details/${detailId}`);
+    const response = await api.delete<{ status: number; message: string }>(`/api/kpi/details/${detailId}`);
     return response.data;
   },
 };

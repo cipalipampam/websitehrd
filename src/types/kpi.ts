@@ -43,6 +43,8 @@ export interface KpiDetail {
   target: number;
   realisasi: number | null;
   score: number | null;
+  periodeYear?: number;
+  periodeMonth?: number;
   createdAt: string;
   updatedAt: string;
   indikator: KpiIndicator;
@@ -52,15 +54,21 @@ export interface KpiDetailCreateRequest {
   indikatorId: string;
   target: number;
   realisasi?: number;
+  periodeYear?: number;
+  periodeMonth?: number;
 }
 
 export interface KpiDetailUpdateRequest {
   target?: number;
   realisasi?: number;
+  periodeYear?: number;
+  periodeMonth?: number;
 }
 
 // KPI Types
 export interface Kpi {
+  periodeMonth: number;
+  periodeYear: number;
   id: string;
   year: number;
   score: number;
@@ -100,11 +108,14 @@ export interface KpiSingleResponse {
 
 export interface KpiCreateRequest {
   karyawanId: string;
-  year: number;
-  kpiDetails?: Array<{
+  score: number;
+  periodeYear: number;
+  kpiDetails: Array<{
     indikatorId: string;
     target: number;
     realisasi?: number;
+    periodeYear?: number;
+    periodeMonth?: number;
   }>;
 }
 
@@ -115,6 +126,8 @@ export interface KpiUpdateRequest {
     indikatorId: string;
     target: number;
     realisasi?: number;
+    periodeYear?: number;
+    periodeMonth?: number;
   }>;
 }
 
@@ -122,4 +135,30 @@ export interface KpiDetailSingleResponse {
   status: number;
   message: string;
   data: KpiDetail;
+}
+
+// KPI Bulanan Types
+export interface KpiBulanan {
+  kpiId?: string;
+  detailId?: string;
+  karyawanId: string;
+  namaKaryawan: string;
+  departemenId: string;
+  departemen: string;
+  tahun: number;
+  bulan: string;
+  scorePresensi: string;
+  scorePelatihan: number;
+  bobotPresensi: number;
+  bobotPelatihan: number;
+  totalBobotIndikatorLain: number;
+  totalScoreIndikatorLain: number;
+  kpiIndikatorLain: number;
+  kpiFinal: number;
+}
+
+export interface KpiBulananResponse {
+  status: number;
+  message: string;
+  data: KpiBulanan[];
 }
