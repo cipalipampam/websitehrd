@@ -1292,7 +1292,7 @@ export const Kpi = () => {
 
       {/* Monthly Detail Dialog */}
       <Dialog open={monthlyDetailDialogOpen} onOpenChange={setMonthlyDetailDialogOpen}>
-        <DialogContent className="max-w-2xl rounded-xl shadow-lg bg-white p-8">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl shadow-lg bg-white">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold mb-1 text-gray-900">Detail Indikator KPI</DialogTitle>
             <DialogDescription className="mb-4 text-gray-500">
@@ -1301,145 +1301,144 @@ export const Kpi = () => {
           </DialogHeader>
 
           {selectedMonthlyKpi && monthlyKpiDetail && (
-            <>
-              <div className="grid grid-cols-2 gap-6 mb-4">
-                <div>
-                  <Label className="text-xs text-gray-500">Karyawan</Label>
-                  <div className="font-bold text-lg text-gray-900">{selectedMonthlyKpi.namaKaryawan}</div>
+            <div className="grid grid-cols-2 gap-6">
+              {/* KOLOM KIRI - Info Karyawan & Komponen KPI */}
+              <div className="space-y-4">
+                {/* Header Info */}
+                <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Karyawan</Label>
+                    <div className="font-bold text-lg text-gray-900">{selectedMonthlyKpi.namaKaryawan}</div>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Departemen</Label>
+                    <div className="font-bold text-lg text-gray-900">{selectedMonthlyKpi.departemen}</div>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Bulan</Label>
+                    <div className="font-bold text-lg">{getMonthName(selectedMonthlyKpi.bulan)} {selectedMonthlyKpi.tahun}</div>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">KPI Final</Label>
+                    <Badge className={`${getScoreColor(selectedMonthlyKpi.kpiFinal)} text-white font-bold text-lg mt-1`}>
+                      {selectedMonthlyKpi.kpiFinal ? selectedMonthlyKpi.kpiFinal.toFixed(2) + '%' : '-'}
+                    </Badge>
+                  </div>
                 </div>
-                <div>
-                  <Label className="text-xs text-gray-500">Departemen</Label>
-                  <div className="font-bold text-lg text-gray-900">{selectedMonthlyKpi.departemen}</div>
-                </div>
-                <div>
-                  <Label className="text-xs text-gray-500">Bulan</Label>
-                  <div className="font-bold text-lg">{getMonthName(selectedMonthlyKpi.bulan)} {selectedMonthlyKpi.tahun}</div>
-                </div>
-                <div className="flex flex-col items-start">
-                  <Label className="text-xs text-gray-500">KPI Final</Label>
-                  <span className="inline-block px-4 py-1 rounded-full bg-red-500 text-white font-bold text-lg mt-1">
-                    {selectedMonthlyKpi.kpiFinal ? selectedMonthlyKpi.kpiFinal.toFixed(2) + '%' : '-'}
-                  </span>
-                </div>
-              </div>
 
-              <div className="mb-2 mt-2">
-                <Label className="text-base font-semibold text-gray-800 mb-2 block">Komponen KPI</Label>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Komponen</TableHead>
-                      <TableHead>Score</TableHead>
-                      <TableHead>Bobot (%)</TableHead>
-                      <TableHead>Kontribusi</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell>Presensi</TableCell>
-                      <TableCell>
-                        <Badge className="bg-blue-500 text-white px-2 py-1">{selectedMonthlyKpi.scorePresensi}%</Badge>
-                      </TableCell>
-                      <TableCell>{selectedMonthlyKpi.bobotPresensi}%</TableCell>
-                      <TableCell>{(parseFloat(selectedMonthlyKpi.scorePresensi) * selectedMonthlyKpi.bobotPresensi / 100).toFixed(2)}</TableCell>
-                    </TableRow>
-
-                    <TableRow>
-                      <TableCell>Pelatihan</TableCell>
-                      <TableCell>
-                        <Badge className="bg-purple-500 text-white px-2 py-1">{selectedMonthlyKpi.scorePelatihan}%</Badge>
-                      </TableCell>
-                      <TableCell>{selectedMonthlyKpi.bobotPelatihan}%</TableCell>
-                      <TableCell>{(selectedMonthlyKpi.scorePelatihan * selectedMonthlyKpi.bobotPelatihan / 100).toFixed(2)}</TableCell>
-                    </TableRow>
-
-                    {/* If monthlyKpiDetail contains kpiDetails, render them */}
-                    {monthlyKpiDetail.kpiDetails && monthlyKpiDetail.kpiDetails.length > 0 && monthlyKpiDetail.kpiDetails.map((detail: any) => (
-                      <TableRow key={detail.id}>
-                        <TableCell>{detail.indikator?.nama || 'Indikator Lain'}</TableCell>
-                        <TableCell>
-                          <Badge className="bg-green-500 text-white px-2 py-1">
-                            {detail.score != null ? detail.score.toFixed(1) + '%' : '-'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{detail.indikator?.bobot ? (detail.indikator.bobot * 100).toFixed(0) + '%' : '-'}</TableCell>
-                        <TableCell>
-                          {detail.score != null && detail.indikator?.bobot ? (detail.score * detail.indikator.bobot).toFixed(2) : '-'}
-                        </TableCell>
+                {/* Komponen KPI */}
+                <div className="space-y-2">
+                  <Label className="text-base font-semibold text-gray-800 block">Komponen KPI</Label>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs">Komponen</TableHead>
+                        <TableHead className="text-xs text-center">Score</TableHead>
+                        <TableHead className="text-xs text-center">Bobot (%)</TableHead>
+                        <TableHead className="text-xs text-center">Kontribusi</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell className="font-medium">Presensi</TableCell>
+                        <TableCell className="text-center">
+                          <Badge className="bg-blue-500 text-white text-xs">{selectedMonthlyKpi.scorePresensi}%</Badge>
+                        </TableCell>
+                        <TableCell className="text-center">{selectedMonthlyKpi.bobotPresensi}%</TableCell>
+                        <TableCell className="text-center font-medium">{(parseFloat(selectedMonthlyKpi.scorePresensi) * selectedMonthlyKpi.bobotPresensi / 100).toFixed(2)}</TableCell>
+                      </TableRow>
+
+                      <TableRow>
+                        <TableCell className="font-medium">Pelatihan</TableCell>
+                        <TableCell className="text-center">
+                          <Badge className="bg-purple-500 text-white text-xs">{selectedMonthlyKpi.scorePelatihan}%</Badge>
+                        </TableCell>
+                        <TableCell className="text-center">{selectedMonthlyKpi.bobotPelatihan}%</TableCell>
+                        <TableCell className="text-center font-medium">{(selectedMonthlyKpi.scorePelatihan * selectedMonthlyKpi.bobotPelatihan / 100).toFixed(2)}</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Perhitungan Final */}
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200">
+                  <Label className="text-sm font-semibold text-gray-800 mb-2 block">Perhitungan Final</Label>
+                  <div className="font-bold text-2xl text-blue-600">
+                    KPI Final = {selectedMonthlyKpi.kpiFinal ? selectedMonthlyKpi.kpiFinal.toFixed(2) + '%' : '-'}
+                  </div>
+                </div>
               </div>
 
-              {monthlyKpiDetail.kpiDetails && monthlyKpiDetail.kpiDetails.length > 0 && (
-                <div className="mb-4 mt-4">
-                  <Label className="text-base font-semibold text-gray-800 mb-2 block">Detail Indikator Lain</Label>
-                  <div className="space-y-2">
-                    {monthlyKpiDetail.kpiDetails.map((detail: any) => (
-                      <div key={detail.id} className="border rounded-lg p-3 bg-gray-50">
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <Label className="text-xs text-gray-500">Indikator</Label>
-                            <div className="font-semibold text-sm">{detail.indikator?.nama || '-'}</div>
+              {/* KOLOM KANAN - Detail Indikator Lain */}
+              <div className="space-y-4 border-l pl-6">
+                <div>
+                  <Label className="text-base font-semibold text-gray-800 mb-3 block">Detail Indikator Lain</Label>
+                  
+                  {monthlyKpiDetail.kpiDetails && monthlyKpiDetail.kpiDetails.length > 0 ? (
+                    <div className="space-y-3">
+                      {monthlyKpiDetail.kpiDetails.map((detail: any) => (
+                        <div key={detail.id} className="border rounded-lg p-4 bg-white hover:shadow-md transition-shadow">
+                          <div className="mb-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <Label className="text-xs text-muted-foreground">Indikator</Label>
+                              <Badge className="bg-green-500 text-white text-xs">
+                                {detail.score != null ? detail.score.toFixed(1) + '%' : '-'}
+                              </Badge>
+                            </div>
+                            <div className="font-bold text-base text-gray-900">{detail.indikator?.nama || '-'}</div>
                           </div>
 
-                          <div>
-                            <Label className="text-xs text-gray-500">Bobot</Label>
-                            <div className="font-semibold text-sm">{detail.indikator?.bobot ? (detail.indikator.bobot * 100).toFixed(0) + '%' : '-'}</div>
-                          </div>
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Bobot</Label>
+                              <div className="font-semibold">{detail.indikator?.bobot ? (detail.indikator.bobot * 100).toFixed(0) + '%' : '-'}</div>
+                            </div>
 
-                          <div>
-                            <Label className="text-xs text-gray-500">Target</Label>
-                            <div className="font-semibold text-sm">{detail.target || '-'}</div>
-                          </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Kontribusi</Label>
+                              <div className="font-semibold">{detail.score != null && detail.indikator?.bobot ? (detail.score * detail.indikator.bobot).toFixed(2) : '-'}</div>
+                            </div>
 
-                          <div>
-                            <Label className="text-xs text-gray-500">Realisasi</Label>
-                            <div className="font-semibold text-sm">{detail.realisasi ?? '-'}</div>
-                          </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Target</Label>
+                              <div className="font-semibold">{detail.target || '-'}</div>
+                            </div>
 
-                          <div>
-                            <Label className="text-xs text-gray-500">Score</Label>
-                            <Badge className="bg-green-500 text-white px-2 py-1 text-xs">
-                              {detail.score != null ? detail.score.toFixed(1) + '%' : '-'}
-                            </Badge>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Realisasi</Label>
+                              <div className="font-semibold">{detail.realisasi ?? '-'}</div>
+                            </div>
                           </div>
+                        </div>
+                      ))}
 
+                      {/* Summary Box */}
+                      <div className="mt-4 p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200">
+                        <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <Label className="text-xs text-gray-500">Kontribusi</Label>
-                            <div className="font-semibold text-sm">{detail.score != null && detail.indikator?.bobot ? (detail.score * detail.indikator.bobot).toFixed(2) : '-'}</div>
+                            <Label className="text-xs text-muted-foreground">Total Bobot Indikator Lain</Label>
+                            <div className="font-bold text-xl text-purple-600">{selectedMonthlyKpi.totalBobotIndikatorLain}%</div>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">KPI Indikator Lain</Label>
+                            <div className="font-bold text-xl text-purple-600">{selectedMonthlyKpi.kpiIndikatorLain.toFixed(2)}</div>
                           </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-6 mt-4 mb-2">
-                <div>
-                  <Label className="text-xs text-gray-500">Total Bobot Indikator Lain</Label>
-                  <div className="font-semibold text-gray-800">{selectedMonthlyKpi.totalBobotIndikatorLain}</div>
-                </div>
-                <div>
-                  <Label className="text-xs text-gray-500">KPI Indikator Lain</Label>
-                  <div className="font-semibold text-gray-800">{selectedMonthlyKpi.kpiIndikatorLain.toFixed(2)}</div>
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                      <p className="text-sm text-muted-foreground">Tidak ada indikator lain yang terdaftar</p>
+                    </div>
+                  )}
                 </div>
               </div>
-
-              <div className="mt-4 mb-2">
-                <Label className="text-base font-semibold text-gray-800 mb-2 block">Perhitungan Final</Label>
-                <div className="font-bold text-xl text-gray-900">
-                  KPI Final = {selectedMonthlyKpi.kpiFinal ? selectedMonthlyKpi.kpiFinal.toFixed(2) + '%' : '-'}
-                </div>
-              </div>
-
-              <DialogFooter className="mt-6 flex justify-end">
-                <Button type="button" className="px-6 py-2" onClick={() => setMonthlyDetailDialogOpen(false)}>Tutup</Button>
-              </DialogFooter>
-            </>
+            </div>
           )}
+
+          <DialogFooter className="mt-6">
+            <Button type="button" onClick={() => setMonthlyDetailDialogOpen(false)}>Tutup</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

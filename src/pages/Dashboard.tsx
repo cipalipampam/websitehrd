@@ -149,6 +149,11 @@ export const Dashboard = () => {
   const currentDate = new Date();
   const currentMonth = currentDate.getMonth(); // 0-11 (December = 11)
   const currentYear = currentDate.getFullYear();
+  
+  // Calculate 1 years ago from current month for line chart filter
+  const twoYearsAgoDate = new Date(currentYear, currentMonth - 12, 1); // 24 months ago
+  const twoYearsAgoMonth = twoYearsAgoDate.getMonth();
+  const twoYearsAgoYear = twoYearsAgoDate.getFullYear();
 
   // Selection & UI state
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
@@ -546,7 +551,8 @@ export const Dashboard = () => {
   const getYearOptions = () => {
     const currentYear = new Date().getFullYear();
     const years = [];
-    for (let i = currentYear - 5; i <= currentYear + 1; i++) {
+    // Only show current year and 2 years back (max 2 years from now)
+    for (let i = currentYear - 2; i <= currentYear; i++) {
       years.push(i);
     }
     return years;
@@ -644,11 +650,11 @@ export const Dashboard = () => {
     return sorted;
   }, [kpiBulanan]);
 
-  // Chart date range controls
-  const [chartStartMonth, setChartStartMonth] = useState<number>(9);
-  const [chartStartYear, setChartStartYear] = useState<number>(2025);
-  const [chartEndMonth, setChartEndMonth] = useState<number>(10);
-  const [chartEndYear, setChartEndYear] = useState<number>(2025);
+  // Chart date range controls - default to 2 years range
+  const [chartStartMonth, setChartStartMonth] = useState<number>(twoYearsAgoMonth);
+  const [chartStartYear, setChartStartYear] = useState<number>(twoYearsAgoYear);
+  const [chartEndMonth, setChartEndMonth] = useState<number>(currentMonth);
+  const [chartEndYear, setChartEndYear] = useState<number>(currentYear);
 
   const getFilteredData = () => {
     if (!getLast12MonthsData || getLast12MonthsData.length === 0) {
@@ -658,6 +664,15 @@ export const Dashboard = () => {
 
     const startDate = new Date(chartStartYear, chartStartMonth);
     const endDate = new Date(chartEndYear, chartEndMonth);
+    const now = new Date();
+    const maxEndDate = new Date(now.getFullYear(), now.getMonth());
+    const minStartDate = new Date(now.getFullYear(), now.getMonth() - 24); // 2 years ago
+    
+    // Validate: end date should not exceed current month
+    const validEndDate = endDate > maxEndDate ? maxEndDate : endDate;
+    
+    // Validate: start date should not be more than 2 years ago
+    const validStartDate = startDate < minStartDate ? minStartDate : startDate;
 
     const filtered = getLast12MonthsData.filter((item: any) => {
       // Use rawMonth (2025-11) for proper filtering
@@ -666,13 +681,13 @@ export const Dashboard = () => {
       
       const [year, month] = monthStr.split('-');
       const itemDate = new Date(parseInt(year, 10), parseInt(month, 10) - 1);
-      const inRange = itemDate >= startDate && itemDate <= endDate;
+      const inRange = itemDate >= validStartDate && itemDate <= validEndDate;
       
-      console.log(`Filtering: ${monthStr} -> ${itemDate.toISOString().slice(0, 7)} in range ${startDate.toISOString().slice(0, 7)} to ${endDate.toISOString().slice(0, 7)}: ${inRange}`);
+      console.log(`Filtering: ${monthStr} -> ${itemDate.toISOString().slice(0, 7)} in range ${validStartDate.toISOString().slice(0, 7)} to ${validEndDate.toISOString().slice(0, 7)}: ${inRange}`);
       return inRange;
     });
 
-    console.log('Filtered chart data:', filtered);
+    console.log('Filtered chart data (max 2 years from now):', filtered);
     return filtered;
   };
 
