@@ -5,15 +5,8 @@ import { useAuthStore } from '../stores/authStore';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '../components/ui/card';
 import { Alert, AlertDescription } from '../components/ui/alert';
-import { Loader2, Eye, EyeOff, Building2, Users, BarChart3 } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Building2 } from 'lucide-react';
 
 interface ErrorResponse {
   message?: string;
@@ -91,7 +84,7 @@ export const Login = () => {
               <div className="w-8 h-8 bg-black dark:bg-white rounded-lg flex items-center justify-center">
                 <Building2 className="h-5 w-5 text-white dark:text-black" />
               </div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">HR System</h1>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">SPK Promosi Jabatan</h1>
             </div>
           </div>
 
@@ -132,12 +125,6 @@ export const Login = () => {
                 <Label htmlFor="password" className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   Password
                 </Label>
-                <button 
-                  type="button" 
-                  className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 font-medium"
-                >
-                  Forgot Password?
-                </button>
               </div>
               <div className="relative">
                 <Input
@@ -183,13 +170,6 @@ export const Login = () => {
               )}
             </Button>
           </form>
-
-          {/* Footer */}
-          <div className="mt-8 pt-6 border-t border-gray-200 dark:border-slate-700">
-            <p className="text-center text-sm text-gray-600 dark:text-gray-400">
-              Don't have an account? <span className="text-gray-900 dark:text-white font-medium cursor-pointer hover:underline">Contact Admin</span>
-            </p>
-          </div>
         </div>
       </div>
 
@@ -302,7 +282,7 @@ export const Login = () => {
           <div className="w-24 h-24 bg-black dark:bg-white rounded-3xl flex items-center justify-center mb-6 mx-auto shadow-2xl">
             <Building2 className="h-12 w-12 text-white dark:text-black" />
           </div>
-          <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">HR Management</h3>
+          <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">SPK Management</h3>
           <p className="text-gray-800 dark:text-gray-200 max-w-sm font-bold">Streamline your human resources with our comprehensive management system</p>
         </div>
       </div>
