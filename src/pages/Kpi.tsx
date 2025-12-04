@@ -1015,7 +1015,7 @@ export const Kpi = () => {
                           <TableCell><Badge variant="outline">{monthlyKpi.departemen}</Badge></TableCell>
                           <TableCell>{monthlyKpi.tahun}</TableCell>
                           <TableCell>{getMonthName(monthlyKpi.bulan)}</TableCell>
-                          <TableCell><Badge variant="secondary">{monthlyKpi.scorePresensi}%</Badge></TableCell>
+                          <TableCell><Badge variant="secondary">{Number(monthlyKpi.scorePresensi).toFixed(2)}%</Badge></TableCell>
                           {/* <TableCell><Badge variant="outline">{monthlyKpi.bobotPresensi}%</Badge></TableCell> */}
                           <TableCell><Badge variant="secondary">{monthlyKpi.scorePelatihan}%</Badge></TableCell>
                           {/* <TableCell><Badge variant="outline">{monthlyKpi.bobotPelatihan}%</Badge></TableCell> */}
@@ -1342,7 +1342,7 @@ export const Kpi = () => {
                       <TableRow>
                         <TableCell className="font-medium">Presensi</TableCell>
                         <TableCell className="text-center">
-                          <Badge className="bg-blue-500 text-white text-xs">{selectedMonthlyKpi.scorePresensi}%</Badge>
+                          <Badge className="bg-blue-500 text-white text-xs">{Number(selectedMonthlyKpi.scorePresensi).toFixed(2)}%</Badge>
                         </TableCell>
                         <TableCell className="text-center">{selectedMonthlyKpi.bobotPresensi}%</TableCell>
                         <TableCell className="text-center font-medium">{(parseFloat(selectedMonthlyKpi.scorePresensi) * selectedMonthlyKpi.bobotPresensi / 100).toFixed(2)}</TableCell>
@@ -1417,7 +1417,7 @@ export const Kpi = () => {
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <Label className="text-xs text-muted-foreground">Total Bobot Indikator Lain</Label>
-                            <div className="font-bold text-xl text-purple-600">{selectedMonthlyKpi.totalBobotIndikatorLain}%</div>
+                            <div className="font-bold text-xl text-purple-600">{selectedMonthlyKpi.totalBobotIndikatorLain}</div>
                           </div>
                           <div>
                             <Label className="text-xs text-muted-foreground">KPI Indikator Lain</Label>
