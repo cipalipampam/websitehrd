@@ -6,7 +6,6 @@ import type {
   BatchPredictResult,
   KaryawanPredictResponse,
   PredictResponse,
-  ProbabilityObject,
 } from "../types/predict";
 import type { Departemen } from "../types/departemen";
 import type { Karyawan } from "../types/karyawan";
@@ -55,7 +54,6 @@ import {
 } from "lucide-react";
 import { AxiosError } from "axios";
 import { Badge } from "../components/ui/badge";
-import { Progress } from "../components/ui/progress";
 
 interface AlertState {
   show: boolean;
@@ -148,7 +146,7 @@ export const Predict = () => {
     } catch (error) {
       const errorMessage =
         error instanceof AxiosError
-          ? error.response?.data?.message || "Gagal melakukan prediksi"
+          ? error.response?.data?. message || "Gagal melakukan prediksi"
           : "Gagal melakukan prediksi";
       showAlert("error", errorMessage);
     } finally {
@@ -168,7 +166,7 @@ export const Predict = () => {
         selectedKaryawanId,
         karyawanYear
       );
-      setPredictionResult(response.data);
+      setPredictionResult(response. data);
       showAlert("success", "Prediksi berhasil!");
     } catch (error) {
       const errorMessage =
@@ -203,20 +201,8 @@ export const Predict = () => {
   };
 
   const exportToCSV = () => {
-    const headers = [
-      "Nama",
-      "Prediksi",
-      "Confidence",
-      "Probability Tidak Promosi",
-      "Probability Promosi",
-    ];
-    const rows = batchResults.map((result) => [
-      result.nama,
-      result.prediction,
-      `${(result.confidence * 100).toFixed(2)}%`,
-      `${(result.probability.tidak_promosi * 100).toFixed(2)}%`,
-      `${(result.probability.promosi * 100).toFixed(2)}%`,
-    ]);
+    const headers = ["Nama", "Prediksi"];
+    const rows = batchResults.map((result) => [result.nama, result.prediction]);
 
     const csvContent = [
       headers.join(","),
@@ -225,34 +211,28 @@ export const Predict = () => {
 
     const blob = new Blob([csvContent], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `prediksi-promosi-${batchYear}.csv`;
+    const a = document. createElement("a");
+    a. href = url;
+    a. download = `prediksi-promosi-${batchYear}.csv`;
     a.click();
   };
 
-  const getConfidenceColor = (confidence: number) => {
-    if (confidence >= 0.8) return "text-green-600";
-    if (confidence >= 0.6) return "text-yellow-600";
-    return "text-red-600";
-  };
-
   const getPredictionBadge = (prediction: string) => {
-    return prediction === "Promosi" ? (
-      <Badge className="bg-green-100 text-green-800">
-        <TrendingUp className="mr-1 h-3 w-3" />
+    return prediction === "Promosi" ?  (
+      <Badge className="bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 font-medium px-4 py-1. 5 rounded-full">
+        <TrendingUp className="mr-1. 5 h-3. 5 w-3.5" />
         Promosi
       </Badge>
     ) : (
-      <Badge variant="secondary" className="bg-red-100 text-red-800">
-        <TrendingDown className="mr-1 h-3 w-3" />
+      <Badge className="bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 font-medium px-4 py-1.5 rounded-full">
+        <TrendingDown className="mr-1.5 h-3.5 w-3.5" />
         Tidak Promosi
       </Badge>
     );
   };
 
   const stats = {
-    total: batchResults.length,
+    total: batchResults. length,
     promosi: batchResults.filter((r) => r.prediction_value === 1).length,
     tidakPromosi: batchResults.filter((r) => r.prediction_value === 0).length,
   };
@@ -261,7 +241,7 @@ export const Predict = () => {
   const getJabatanName = (karyawan: Karyawan): string => {
     if (
       karyawan.jabatan &&
-      Array.isArray(karyawan.jabatan) &&
+      Array.isArray(karyawan. jabatan) &&
       karyawan.jabatan.length > 0
     ) {
       return karyawan.jabatan[0].nama;
@@ -274,22 +254,6 @@ export const Predict = () => {
     result: PredictionResultData
   ): result is KaryawanPredictResponse["data"] => {
     return result !== null && "nama" in result;
-  };
-
-  // ✅ NEW: Helper to safely get probability value from object
-  const getProbabilityValue = (
-    probability: ProbabilityObject | undefined,
-    type: "tidak_promosi" | "promosi"
-  ): number => {
-    if (!probability) return 0;
-    const value = probability[type];
-    return isNaN(value) ? 0 : value;
-  };
-
-  // Helper to format percentage
-  const formatPercentage = (value: number): string => {
-    if (isNaN(value)) return "0.00%";
-    return `${(value * 100).toFixed(2)}%`;
   };
 
   return (
@@ -358,7 +322,7 @@ export const Predict = () => {
                             <SelectContent>
                               {departemenList.map((dept) => (
                                 <SelectItem key={dept.id} value={dept.nama}>
-                                  {dept.nama}
+                                  {dept. nama}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -368,7 +332,7 @@ export const Predict = () => {
                         <div className="space-y-2">
                           <Label>Pendidikan</Label>
                           <Select
-                            value={formData.pendidikan}
+                            value={formData. pendidikan}
                             onValueChange={(value) =>
                               setFormData({ ...formData, pendidikan: value })
                             }
@@ -391,19 +355,15 @@ export const Predict = () => {
                           <Select
                             value={formData.gender}
                             onValueChange={(value) =>
-                              setFormData({ ...formData, gender: value })
+                              setFormData({ ... formData, gender: value })
                             }
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="Pilih gender" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="Pria">
-                                Pria
-                              </SelectItem>
-                              <SelectItem value="Wanita">
-                                Wanita
-                              </SelectItem>
+                              <SelectItem value="Pria">Pria</SelectItem>
+                              <SelectItem value="Wanita">Wanita</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -420,9 +380,11 @@ export const Predict = () => {
                               <SelectValue placeholder="Pilih jalur" />
                             </SelectTrigger>
                             <SelectContent>
-                               <SelectItem value="Wawancara">Wawancara</SelectItem>
-                        <SelectItem value="Undangan">Undangan</SelectItem>
-                        <SelectItem value="lainnya">lainnya</SelectItem>
+                              <SelectItem value="Wawancara">
+                                Wawancara
+                              </SelectItem>
+                              <SelectItem value="Undangan">Undangan</SelectItem>
+                              <SelectItem value="lainnya">lainnya</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -431,7 +393,7 @@ export const Predict = () => {
                           <Label>Umur</Label>
                           <Input
                             type="number"
-                            value={formData.umur}
+                            value={formData. umur}
                             onChange={(e) =>
                               setFormData({
                                 ...formData,
@@ -470,9 +432,9 @@ export const Predict = () => {
                         </div>
 
                         <div className="space-y-2">
-                          <Label>KPI {">"} 80% ?</Label>
+                          <Label>KPI {">"} 80% ? </Label>
                           <Select
-                            value={formData["KPI_>80%"].toString()}
+                            value={formData["KPI_>80%"]. toString()}
                             onValueChange={(value) =>
                               setFormData({
                                 ...formData,
@@ -491,19 +453,9 @@ export const Predict = () => {
                         </div>
 
                         <div className="space-y-2">
-                          <Label>Mendapat Penghargaan ?</Label>
-                          {/* <Input
-                            type="number"
-                            value={formData.penghargaan}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                penghargaan: parseInt(e.target.value) || 0,
-                              })
-                            }
-                          /> */}
-                           <Select
-                            value={formData.penghargaan.toString()}
+                          <Label>Mendapat Penghargaan ? </Label>
+                          <Select
+                            value={formData. penghargaan.toString()}
                             onValueChange={(value) =>
                               setFormData({
                                 ...formData,
@@ -525,7 +477,6 @@ export const Predict = () => {
                           <Label>Rata-rata Score Pelatihan</Label>
                           <Input
                             type="number"
-                            // step="0.01"
                             value={formData.rata_rata_score_pelatihan}
                             onChange={(e) =>
                               setFormData({
@@ -559,68 +510,15 @@ export const Predict = () => {
                     <CardHeader>
                       <CardTitle>Hasil Prediksi</CardTitle>
                       <CardDescription>
-                        Analisis prediksi promosi
+                        Hasil prediksi promosi karyawan
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="text-center p-6 bg-gray-50 rounded-lg">
+                    <CardContent>
+                      <div className="text-center p-12 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg">
+                        <p className="text-sm text-gray-600 mb-4">
+                          Hasil Prediksi
+                        </p>
                         {getPredictionBadge(predictionResult.prediction)}
-                        <div className="mt-4">
-                          <p className="text-sm text-gray-600">Confidence</p>
-                          <p
-                            className={`text-3xl font-bold ${getConfidenceColor(
-                              predictionResult.confidence
-                            )}`}
-                          >
-                            {formatPercentage(predictionResult.confidence)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Tidak Promosi</span>
-                          <span>
-                            {formatPercentage(
-                              getProbabilityValue(
-                                predictionResult.probability,
-                                "tidak_promosi"
-                              )
-                            )}
-                          </span>
-                        </div>
-                        <Progress
-                          value={
-                            getProbabilityValue(
-                              predictionResult.probability,
-                              "tidak_promosi"
-                            ) * 100
-                          }
-                          className="h-2"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Promosi</span>
-                          <span>
-                            {formatPercentage(
-                              getProbabilityValue(
-                                predictionResult.probability,
-                                "promosi"
-                              )
-                            )}
-                          </span>
-                        </div>
-                        <Progress
-                          value={
-                            getProbabilityValue(
-                              predictionResult.probability,
-                              "promosi"
-                            ) * 100
-                          }
-                          className="h-2"
-                        />
                       </div>
                     </CardContent>
                   </Card>
@@ -667,7 +565,7 @@ export const Predict = () => {
                         type="number"
                         value={karyawanYear}
                         onChange={(e) =>
-                          setKaryawanYear(parseInt(e.target.value))
+                          setKaryawanYear(parseInt(e.target. value))
                         }
                       />
                     </div>
@@ -695,65 +593,12 @@ export const Predict = () => {
                         {predictionResult.nama} - Tahun {predictionResult.year}
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="text-center p-6 bg-gray-50 rounded-lg">
+                    <CardContent>
+                      <div className="text-center p-12 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg">
+                        <p className="text-sm text-gray-600 mb-4">
+                          Hasil Prediksi
+                        </p>
                         {getPredictionBadge(predictionResult.prediction)}
-                        <div className="mt-4">
-                          <p className="text-sm text-gray-600">Confidence</p>
-                          <p
-                            className={`text-3xl font-bold ${getConfidenceColor(
-                              predictionResult.confidence
-                            )}`}
-                          >
-                            {formatPercentage(predictionResult.confidence)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Tidak Promosi</span>
-                          <span>
-                            {formatPercentage(
-                              getProbabilityValue(
-                                predictionResult.probability,
-                                "tidak_promosi"
-                              )
-                            )}
-                          </span>
-                        </div>
-                        <Progress
-                          value={
-                            getProbabilityValue(
-                              predictionResult.probability,
-                              "tidak_promosi"
-                            ) * 100
-                          }
-                          className="h-2"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Promosi</span>
-                          <span>
-                            {formatPercentage(
-                              getProbabilityValue(
-                                predictionResult.probability,
-                                "promosi"
-                              )
-                            )}
-                          </span>
-                        </div>
-                        <Progress
-                          value={
-                            getProbabilityValue(
-                              predictionResult.probability,
-                              "promosi"
-                            ) * 100
-                          }
-                          className="h-2"
-                        />
                       </div>
                     </CardContent>
                   </Card>
@@ -773,7 +618,7 @@ export const Predict = () => {
                     Prediksi promosi untuk semua karyawan sekaligus
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label>Tahun</Label>
@@ -832,31 +677,37 @@ export const Predict = () => {
                   {/* Statistics */}
                   {batchResults.length > 0 && (
                     <div className="grid grid-cols-3 gap-4">
-                      <Card>
+                      <Card className="border-gray-200">
                         <CardContent className="pt-6">
                           <div className="text-center">
-                            <p className="text-sm text-gray-600">Total</p>
-                            <p className="text-2xl font-bold">{stats.total}</p>
+                            <p className="text-sm font-medium text-gray-600 mb-1">
+                              Total
+                            </p>
+                            <p className="text-3xl font-bold text-gray-900">
+                              {stats.total}
+                            </p>
                           </div>
                         </CardContent>
                       </Card>
-                      <Card>
+                      <Card className="border-green-200 bg-green-50/50">
                         <CardContent className="pt-6">
                           <div className="text-center">
-                            <p className="text-sm text-gray-600">Promosi</p>
-                            <p className="text-2xl font-bold text-green-600">
+                            <p className="text-sm font-medium text-green-700 mb-1">
+                              Promosi
+                            </p>
+                            <p className="text-3xl font-bold text-green-600">
                               {stats.promosi}
                             </p>
                           </div>
                         </CardContent>
                       </Card>
-                      <Card>
+                      <Card className="border-red-200 bg-red-50/50">
                         <CardContent className="pt-6">
                           <div className="text-center">
-                            <p className="text-sm text-gray-600">
+                            <p className="text-sm font-medium text-red-700 mb-1">
                               Tidak Promosi
                             </p>
-                            <p className="text-2xl font-bold text-red-600">
+                            <p className="text-3xl font-bold text-red-600">
                               {stats.tidakPromosi}
                             </p>
                           </div>
@@ -865,58 +716,37 @@ export const Predict = () => {
                     </div>
                   )}
 
-                  {/* Results Table */}
+                  {/* Results Table - BALANCED LAYOUT */}
                   {batchResults.length > 0 && (
-                    <div className="border rounded-lg">
+                    <div className="border rounded-lg overflow-hidden">
                       <Table>
                         <TableHeader>
-                          <TableRow>
-                            <TableHead>No</TableHead>
-                            <TableHead>Nama</TableHead>
-                            <TableHead>Prediksi</TableHead>
-                            <TableHead>Confidence</TableHead>
-                            <TableHead>Probability</TableHead>
+                          <TableRow className="bg-gray-50">
+                            <TableHead className="w-20 text-center font-semibold">
+                              No
+                            </TableHead>
+                            <TableHead className="font-semibold">
+                              Nama
+                            </TableHead>
+                            <TableHead className="text-center font-semibold">
+                              Prediksi
+                            </TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {batchResults.map((result, index) => (
-                            <TableRow key={result.karyawan_id}>
-                              <TableCell>{index + 1}</TableCell>
-                              <TableCell className="font-medium">
+                            <TableRow 
+                              key={result.karyawan_id}
+                              className="hover:bg-gray-50/50 transition-colors"
+                            >
+                              <TableCell className="text-center text-gray-600 font-medium">
+                                {index + 1}
+                              </TableCell>
+                              <TableCell className="font-medium text-gray-900">
                                 {result.nama}
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="text-center">
                                 {getPredictionBadge(result.prediction)}
-                              </TableCell>
-                              <TableCell>
-                                <span
-                                  className={getConfidenceColor(
-                                    result.confidence
-                                  )}
-                                >
-                                  {formatPercentage(result.confidence)}
-                                </span>
-                              </TableCell>
-                              <TableCell>
-                                <div className="space-y-1">
-                                  <Progress
-                                    value={
-                                      getProbabilityValue(
-                                        result.probability,
-                                        "promosi"
-                                      ) * 100
-                                    }
-                                    className="h-2"
-                                  />
-                                  <p className="text-xs text-gray-500">
-                                    {formatPercentage(
-                                      getProbabilityValue(
-                                        result.probability,
-                                        "promosi"
-                                      )
-                                    )}
-                                  </p>
-                                </div>
                               </TableCell>
                             </TableRow>
                           ))}
