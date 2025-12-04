@@ -187,67 +187,104 @@ export default function ManajemenKehadiran() {
   };
 
   const getAttendanceData = () => {
-    // Filter karyawan by selected department
-    const deptEmployees = karyawan.filter(k => 
-      k.departemen?.some((d: any) => d.nama === selectedAttendanceDepartment)
-    );
+  const year = selectedAttendanceYear;
+  const month = selectedAttendanceMonth;
+  const daysInMonth = new Date(year, month + 1, 0). getDate();
 
-    return deptEmployees.map(emp => {
-      const empRecords = attendanceRecords.filter(r => r.karyawanId === emp.userId);
-      const daysInMonth = new Date(selectedAttendanceYear, selectedAttendanceMonth + 1, 0).getDate();
-      
-      const employeeData: any = {
-        id: emp.userId,
-        name: emp.nama,
-        presentDays: 0,
-        lateDays: 0,
-        absentDays: 0,
-      };
+  // Filter records berdasarkan departemen (sama seperti dashboard)
+  const filteredRecords = attendanceRecords.filter(record => {
+    const karyawanDept = record. karyawan?.departemen?.[0]?.nama;
+    return karyawanDept === selectedAttendanceDepartment;
+  });
 
-      // Build day-by-day attendance
-      for (let day = 1; day <= daysInMonth; day++) {
-        const date = new Date(selectedAttendanceYear, selectedAttendanceMonth, day);
-        const dayOfWeek = date.getDay();
-        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+  // Buat Map untuk grouping by karyawan
+  const karyawanMap = new Map<string, {
+    id: string;
+    name: string;
+    position: string;
+    records: Map<number, Kehadiran>;
+  }>();
 
-        const record = empRecords.find(r => {
-          const recordDate = new Date(r.tanggal);
-          return recordDate.getDate() === day && 
-                 recordDate.getMonth() === selectedAttendanceMonth &&
-                 recordDate.getFullYear() === selectedAttendanceYear;
-        });
+  filteredRecords.forEach(record => {
+    const karyawanId = record.karyawanId;
+    const recordDate = new Date(record.tanggal);
+    const day = recordDate.getDate();
 
-        if (isWeekend) {
-          employeeData[`day${day}`] = '-';
-        } else if (!record) {
-          employeeData[`day${day}`] = 'X';
-          employeeData.absentDays++;
+    if (!karyawanMap.has(karyawanId)) {
+      karyawanMap.set(karyawanId, {
+        id: karyawanId,
+        name: record.karyawan?.nama || 'Unknown',
+        position: record.karyawan?.jabatan?.[0]?.nama || '-',
+        records: new Map(),
+      });
+    }
+
+    karyawanMap.get(karyawanId)!.records.set(day, record);
+  });
+
+  // Convert Map to Array dan hitung statistik
+  const attendanceData = Array.from(karyawanMap.values()).map(employeeData => {
+    const dailyAttendance: { [key: string]: string } = {};
+    let presentDays = 0;
+    let lateDays = 0;
+    let absentDays = 0;
+    let workingDaysCount = 0;
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, month, day);
+      const isWeekend = date.getDay() === 0 || date. getDay() === 6;
+
+      if (isWeekend) {
+        dailyAttendance[`day${day}`] = '-';
+      } else {
+        workingDaysCount++;
+        const record = employeeData.records.get(day);
+
+        if (! record) {
+          dailyAttendance[`day${day}`] = 'X';
+          absentDays++;
         } else {
-          // Check status: HADIR, TERLAMBAT, IZIN, SAKIT, ALPHA
-          if (record.status === 'HADIR') {
-            employeeData[`day${day}`] = '✓';
-            employeeData.presentDays++;
-          } else if (record.status === 'TERLAMBAT') {
-            employeeData[`day${day}`] = 'L';
-            employeeData.lateDays++;
-          } else if (record.status === 'IZIN' || record.status === 'SAKIT') {
-            employeeData[`day${day}`] = 'I';
+          const status = record.status;
+          if (status === 'HADIR') {
+            dailyAttendance[`day${day}`] = '✓';
+            presentDays++;
+          } else if (status === 'TERLAMBAT') {
+            dailyAttendance[`day${day}`] = 'L';
+            lateDays++;
+          } else if (status === 'IZIN' || status === 'SAKIT') {
+            dailyAttendance[`day${day}`] = 'I';
+            presentDays++; // PENTING: Izin/Sakit dihitung sebagai present
+          } else if (status === 'ALPA' || status === 'BELUM_ABSEN') {
+            dailyAttendance[`day${day}`] = 'X';
+            absentDays++;
           } else {
-            employeeData[`day${day}`] = 'X';
-            employeeData.absentDays++;
+            dailyAttendance[`day${day}`] = 'X';
+            absentDays++;
           }
         }
       }
+    }
 
-      // Calculate attendance rate (weekends not counted)
-      const workDays = daysInMonth - getSelectedMonthDays().filter(d => d.isWeekend).length;
-      employeeData.attendanceRate = workDays > 0 
-        ? Math.round(((employeeData.presentDays + employeeData.lateDays) / workDays) * 100) 
-        : 0;
+    const totalAttended = presentDays + lateDays;
+    const attendanceRate = workingDaysCount > 0 
+      ? Math.round((totalAttended / workingDaysCount) * 100) 
+      : 0;
 
-      return employeeData;
-    });
-  };
+    return {
+      id: employeeData.id,
+      name: employeeData.name,
+      position: employeeData.position,
+      ... dailyAttendance,
+      presentDays,
+      lateDays,
+      absentDays,
+      attendanceRate,
+      totalWorkingDays: workingDaysCount
+    };
+  });
+
+  return attendanceData;
+};
 
   const getAttendanceSummary = () => {
     const data = getAttendanceData();
