@@ -30,26 +30,45 @@ export const Settings = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{
+    currentPassword?: string;
+    newPassword?: string;
+    confirmPassword?: string;
+  }>({});
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Clear previous alerts and errors
+    setAlert(null);
+    setFieldErrors({});
+    
+    const errors: { currentPassword?: string; newPassword?: string; confirmPassword?: string } = {};
+    
     // Client-side validation
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      setAlert({ type: 'error', message: 'Semua field harus diisi' });
-      setTimeout(() => setAlert(null), 3000);
-      return;
+    if (!currentPassword) {
+      errors.currentPassword = 'Password saat ini harus diisi';
     }
 
-    if (newPassword.length < 6) {
-      setAlert({ type: 'error', message: 'Password baru minimal 6 karakter' });
-      setTimeout(() => setAlert(null), 3000);
-      return;
+    if (!newPassword) {
+      errors.newPassword = 'Password baru harus diisi';
+    } else if (newPassword.length < 6) {
+      errors.newPassword = 'Password baru minimal 6 karakter';
+    } else if (currentPassword && currentPassword === newPassword) {
+      errors.newPassword = 'Password baru tidak boleh sama dengan password saat ini';
     }
 
-    if (newPassword !== confirmPassword) {
-      setAlert({ type: 'error', message: 'Password baru dan konfirmasi tidak cocok' });
-      setTimeout(() => setAlert(null), 3000);
+    if (!confirmPassword) {
+      errors.confirmPassword = 'Konfirmasi password harus diisi';
+    } else if (newPassword && newPassword !== confirmPassword) {
+      errors.confirmPassword = 'Konfirmasi password tidak sesuai dengan password baru';
+    }
+
+    // If there are validation errors, show them
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setAlert({ type: 'error', message: 'Mohon perbaiki kesalahan pada form' });
+      setTimeout(() => setAlert(null), 5000);
       return;
     }
 
@@ -57,16 +76,31 @@ export const Settings = () => {
       setIsLoading(true);
       await authAPI.changePassword({ currentPassword, newPassword });
       
-      setAlert({ type: 'success', message: 'Password berhasil diubah' });
+      setAlert({ type: 'success', message: 'Password berhasil diubah! Silakan login dengan password baru Anda.' });
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      setTimeout(() => setAlert(null), 3000);
+      setTimeout(() => setAlert(null), 5000);
     } catch (error: any) {
       console.error('Change password error:', error);
-      const message = error.response?.data?.message || 'Gagal mengubah password';
-      setAlert({ type: 'error', message });
-      setTimeout(() => setAlert(null), 3000);
+      
+      // Handle specific error messages from backend
+      let errorMessage = 'Gagal mengubah password';
+      
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.status === 401) {
+        errorMessage = 'Password saat ini yang Anda masukkan salah';
+      } else if (error.response?.status === 400) {
+        errorMessage = error.response.data?.message || 'Data yang Anda masukkan tidak valid';
+      } else if (error.response?.status === 404) {
+        errorMessage = 'Akun tidak ditemukan';
+      } else if (error.message === 'Network Error') {
+        errorMessage = 'Koneksi ke server gagal. Periksa koneksi internet Anda.';
+      }
+      
+      setAlert({ type: 'error', message: errorMessage });
+      setTimeout(() => setAlert(null), 5000);
     } finally {
       setIsLoading(false);
     }
@@ -144,9 +178,15 @@ export const Settings = () => {
                         id="current-password"
                         type={showCurrentPassword ? 'text' : 'password'}
                         value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        onChange={(e) => {
+                          setCurrentPassword(e.target.value);
+                          if (fieldErrors.currentPassword) {
+                            setFieldErrors(prev => ({ ...prev, currentPassword: undefined }));
+                          }
+                        }}
                         placeholder="Masukkan password saat ini"
                         disabled={isLoading}
+                        className={fieldErrors.currentPassword ? 'border-red-500 focus-visible:ring-red-500' : ''}
                       />
                       <button
                         type="button"
@@ -156,6 +196,12 @@ export const Settings = () => {
                         {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
+                    {fieldErrors.currentPassword && (
+                      <p className="text-xs text-red-500 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        {fieldErrors.currentPassword}
+                      </p>
+                    )}
                   </div>
 
                   <Separator />
@@ -168,9 +214,15 @@ export const Settings = () => {
                         id="new-password"
                         type={showNewPassword ? 'text' : 'password'}
                         value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
+                        onChange={(e) => {
+                          setNewPassword(e.target.value);
+                          if (fieldErrors.newPassword) {
+                            setFieldErrors(prev => ({ ...prev, newPassword: undefined }));
+                          }
+                        }}
                         placeholder="Masukkan password baru"
                         disabled={isLoading}
+                        className={fieldErrors.newPassword ? 'border-red-500 focus-visible:ring-red-500' : ''}
                       />
                       <button
                         type="button"
@@ -180,7 +232,14 @@ export const Settings = () => {
                         {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
-                    <p className="text-xs text-muted-foreground">Minimal 6 karakter</p>
+                    {fieldErrors.newPassword ? (
+                      <p className="text-xs text-red-500 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        {fieldErrors.newPassword}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Minimal 6 karakter</p>
+                    )}
                   </div>
 
                   {/* Confirm Password */}
@@ -191,9 +250,15 @@ export const Settings = () => {
                         id="confirm-password"
                         type={showConfirmPassword ? 'text' : 'password'}
                         value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        onChange={(e) => {
+                          setConfirmPassword(e.target.value);
+                          if (fieldErrors.confirmPassword) {
+                            setFieldErrors(prev => ({ ...prev, confirmPassword: undefined }));
+                          }
+                        }}
                         placeholder="Konfirmasi password baru"
                         disabled={isLoading}
+                        className={fieldErrors.confirmPassword ? 'border-red-500 focus-visible:ring-red-500' : ''}
                       />
                       <button
                         type="button"
@@ -203,6 +268,12 @@ export const Settings = () => {
                         {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
+                    {fieldErrors.confirmPassword && (
+                      <p className="text-xs text-red-500 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        {fieldErrors.confirmPassword}
+                      </p>
+                    )}
                   </div>
 
                   <Button type="submit" disabled={isLoading} className="w-full mt-4">
